@@ -1,0 +1,157 @@
+#pragma kernel Main
+
+// Include the Grass Blade struct
+#include "GrassInstanced.hlsl"
+
+// Input:
+// Mesh Data
+uint _SourceTriangleCount;
+StructuredBuffer<int> _SourceTriangles;
+StructuredBuffer<float3> _SourceVertices;
+StructuredBuffer<float3> _SourceNormals;
+StructuredBuffer<float4> _SourceTangents;
+
+// Output:
+// Grass Blades and Indirect Draw Arguments
+AppendStructuredBuffer<GrassInstance> _ProceduralGrassInstances;
+RWStructuredBuffer<IndirectDrawIndexedArgs> _IndirectDrawIndexedArgs;
+
+// Variables set by the renderer
+float4x4 _LocalToWorld;
+
+// LOD settings and camera position, x = near, y = far, z = curve factor
+float3 _LODSettings;
+float3 _CameraPositionWS;
+float3 _CameraDirectionWS;
+float _CameraFOV;
+
+// Grass settings
+uint _GrassBladesPerTriangle;
+
+float _GrassHeight;
+float _GrassWidth;
+float _GrassBend;
+float _GrassSlant;
+float _GrassRigidity;
+
+float _GrassHeightVariation;
+float _GrassWidthVariation;
+float _GrassBendVariation;
+float _GrassSlantVariation;
+float _GrassRigidityVariation;
+
+// Wind settings
+TEXTURE2D(_WindTexture);
+SAMPLER(sampler_WindTexture);
+float _WindStrength;
+float _WindTimeMultiplier;
+float _WindTextureScale;
+float _WindPositionScale;
+
+// Returns the wind direction and strength at a given position
+float3 GetWindDirection(float3 positionWS, float3 normalWS) {
+    
+    // Get the wind UV coordinate
+    float2 windUV = (positionWS.xz * _WindPositionScale + _Time.y * _WindTimeMultiplier) * _WindTextureScale;
+
+    // Sample the wind noise texture red and green channels where 128 is neutral
+    float2 windNoise = SAMPLE_TEXTURE2D_LOD(_WindTexture, sampler_WindTexture, windUV, 0).rg * 2 - 1;
+
+    // Get the wind direction and strength perpendicularly to the blade
+    return cross(normalWS, float3(windNoise.x, 0, windNoise.y));
+}
+
+// Checks whether to cull the grass blade based on the frustum, occlusion and size-distance LOD
+bool CullGrassBlade(float3 position, float radius, float height, float3 normal) {
+    bool cull = false;
+
+    // Frustum culling
+    cull = cull | FrustumCull(position, radius);
+
+    // Occlusion culling
+
+    // Size-distance LOD culling
+    cull = cull | (height < 2 * distance(position, _CameraPositionWS) * tan(0.5 * _CameraFOV * PI / 180) * 0.001);
+
+    return cull;
+}
+
+// Main compute shader
+[numthreads(8,8,1)]
+void Main(uint3 id : SV_DispatchThreadID) {
+    if (id.x >= _SourceTriangleCount || id.y >= _GrassBladesPerTriangle) { return; }
+
+    // Random numbers
+    float r = rand_xorshift(id.x * 269 + id.y * 293);
+    float r2 = rand_xorshift(id.x * 107 + id.y * 571);
+
+    // Randomized triangle coefficients
+    float3 randomizedCoefficients = UniformRandomBarycentricCoefficients(id.x * 701 + id.y * 109, id.x * 461 + id.y * 1031);
+
+    // Get the triangle
+    float3 v0 = mul(_LocalToWorld, float4(_SourceVertices[_SourceTriangles[id.x * 3 + 0]], 1)).xyz;
+    float3 v1 = mul(_LocalToWorld, float4(_SourceVertices[_SourceTriangles[id.x * 3 + 1]], 1)).xyz;
+    float3 v2 = mul(_LocalToWorld, float4(_SourceVertices[_SourceTriangles[id.x * 3 + 2]], 1)).xyz;
+
+    // Get the triangle normals
+    float3 n0 = normalize(mul(_LocalToWorld, float4(_SourceNormals[_SourceTriangles[id.x * 3 + 0]], 0)).xyz);
+    float3 n1 = normalize(mul(_LocalToWorld, float4(_SourceNormals[_SourceTriangles[id.x * 3 + 1]], 0)).xyz);
+    float3 n2 = normalize(mul(_LocalToWorld, float4(_SourceNormals[_SourceTriangles[id.x * 3 + 2]], 0)).xyz);
+
+    // Get the triangle tangents
+    float4 t0 = mul(_LocalToWorld, _SourceTangents[_SourceTriangles[id.x * 3 + 0]]);
+    float4 t1 = mul(_LocalToWorld, _SourceTangents[_SourceTriangles[id.x * 3 + 1]]);
+    float4 t2 = mul(_LocalToWorld, _SourceTangents[_SourceTriangles[id.x * 3 + 2]]);
+
+    // Calculate average position, normal, tangent and bitangent
+    float3 positionWS = randomizedCoefficients.x * v0 + randomizedCoefficients.y * v1 + randomizedCoefficients.z * v2;
+    float3 normalWS = normalize(randomizedCoefficients.x * n0 + randomizedCoefficients.y * n1 + randomizedCoefficients.z * n2);
+    float3 tangentWS = normalize(randomizedCoefficients.x * t0.xyz + randomizedCoefficients.y * t1.xyz + randomizedCoefficients.z * t2.xyz);
+    float3 bitangentWS = normalize(cross(normalWS, tangentWS));
+
+    // Create tangent to world space matrix
+    float3x3 tangentToWorld = transpose(float3x3(tangentWS, bitangentWS, normalWS));
+
+    // Create the direction matrix
+    float3x3 directionMatrix = AngleAxis3x3(r2 *r2 * 2 * PI, float3(0, 0, 1));
+    float3 windDirectionWS = GetWindDirection(positionWS, normalWS) * _WindStrength;
+
+    // Get the height UV coordinate
+    float2 heightUV = (positionWS.xz * _WindPositionScale) * _WindTextureScale;
+    float2 heightNoise = SAMPLE_TEXTURE2D_LOD(_WindTexture, sampler_WindTexture, heightUV, 0).rg * 2 - 1;
+
+    // Grass variation
+    float height = max(0, _GrassHeight + _GrassHeightVariation * (heightNoise.x + heightNoise.y));
+    float width = _GrassWidth + _GrassWidthVariation * (r  * r2 * 2 - 1);
+    float bend = _GrassBend + _GrassBendVariation * (r2 * 2 - 1);
+
+    // Cull the grass blade
+    if (CullGrassBlade(positionWS, max(height, width), height, normalWS)) { return; }
+
+    // Cull randomly based on the distance, to reduce the number of blades, and widen the remaining ones
+    if (r * (1 - height) > 250 / pow(distance(positionWS, _CameraPositionWS), 2)) {
+        return;
+    } else {
+        width *= max(1, 10 - 75 / distance(positionWS, _CameraPositionWS));
+    }
+
+    // Create the grass blade
+    GrassInstance grassInstance;
+    grassInstance.positionWS = positionWS;
+    grassInstance.normalWS = normalWS;
+    grassInstance.facingWS = normalize(float2(r, r2));
+    
+    grassInstance.type = 0;
+
+    grassInstance.height = height;
+    grassInstance.width = width;
+    grassInstance.bend = bend;
+
+    grassInstance.windDirection = windDirectionWS;
+
+    // Add the grass blade to the buffer
+    _ProceduralGrassInstances.Append(grassInstance);
+
+    // Increase the instance count
+    InterlockedAdd(_IndirectDrawIndexedArgs[0].instanceCount, 1);
+}

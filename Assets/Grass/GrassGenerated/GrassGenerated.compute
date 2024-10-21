@@ -1,0 +1,201 @@
+#pragma kernel Main
+
+// Include the Grass Blade struct
+#include "GrassGenerated.hlsl"
+
+// Define the maximum number of blade points based on maximum blade segments.
+#define MAX_BLADE_POINTS (2 * MAX_BLADE_SEGMENTS + 1)
+
+// Input Mesh
+uint _SourceTriangleCount;
+StructuredBuffer<int> _SourceTriangles;
+StructuredBuffer<float3> _SourceVertices;
+StructuredBuffer<float3> _SourceNormals;
+StructuredBuffer<float4> _SourceTangents;
+
+// Output Grass Blades
+AppendStructuredBuffer<DrawTriangle> _ProceduralTriangles;
+
+// Indirect Draw Arguments
+struct IndirectArgs {
+    uint vertexCountPerInstance;
+    uint instanceCount;
+    uint startVertexIndex;
+    uint startInstanceIndex;
+};
+RWStructuredBuffer<IndirectArgs> _IndirectArgsBuffer;
+
+// Variables set by the renderer
+float4x4 _LocalToWorld;
+
+// LOD settings and camera position, x = near, y = far, z = curve factor
+float3 _LODSettings;
+float3 _CameraPositionWS;
+float3 _CameraDirectionWS;
+float _CameraFOV;
+
+// Grass settings
+uint _MaxBladeSegments;
+uint _GrassBladesPerTriangle;
+
+float _GrassHeight;
+float _GrassWidth;
+float _GrassBend;
+float _GrassSlant;
+float _GrassRigidity;
+
+float _GrassHeightVariation;
+float _GrassWidthVariation;
+float _GrassBendVariation;
+float _GrassSlantVariation;
+float _GrassRigidityVariation;
+
+// Wind settings
+TEXTURE2D(_WindTexture);
+SAMPLER(sampler_WindTexture);
+float _WindStrength;
+float _WindTimeMultiplier;
+float _WindTextureScale;
+float _WindPositionScale;
+
+// Calculates the LOD based on the camera position
+float GetBladeSegments(float3 positionWS, float height) {
+    float d = distance(positionWS, _CameraPositionWS);
+
+    // Calculate the LOD based on the distance
+    d = 1 - smoothstep(_LODSettings.x, _LODSettings.y, d);
+
+    // Apply the curve factor
+    d = pow(abs(d), _LODSettings.z);
+
+    // Clamp the blade segments between 1 and the maximum
+    return max(1, min(MAX_BLADE_SEGMENTS, ceil(d * _MaxBladeSegments)));
+}
+
+// Returns the wind direction and strength at a given position
+float3 GetWindDirection(float3 positionWS, float3 normalWS) {
+    
+    // Get the wind UV coordinate
+    float2 windUV = (positionWS.xz * _WindPositionScale + _Time.y * _WindTimeMultiplier) * _WindTextureScale;
+
+    // Sample the wind noise texture red and green channels where 128 is neutral
+    float2 windNoise = SAMPLE_TEXTURE2D_LOD(_WindTexture, sampler_WindTexture, windUV, 0).rg * 2 - 1;
+
+    // Get the wind direction and strength perpendicularly to the blade
+    return cross(normalWS, float3(windNoise.x, 0, windNoise.y));
+}
+
+// Checks whether to cull the grass blade based on the frustum, occlusion and size-distance LOD
+bool CullGrassBlade(float3 position, float radius, float height, float3 normal) {
+    bool cull = false;
+
+    // Frustum culling
+    cull = cull | FrustumCull(position, radius);
+
+    // Occlusion culling
+
+    // Size-distance LOD culling
+    cull = cull | (height < 2 * distance(position, _CameraPositionWS) * tan(0.5 * _CameraFOV * PI / 180) * 0.001);
+
+    return cull;
+}
+
+// Main compute shader
+[numthreads(8,8,1)]
+void Main(uint3 id : SV_DispatchThreadID) {
+    if (id.x >= _SourceTriangleCount || id.y >= _GrassBladesPerTriangle) { return; }
+
+    // Random numbers
+    float r = rand_xorshift(id.x * 269 + id.y * 293);
+    float r2 = rand_xorshift(id.x * 107 + id.y * 571);
+
+    // Randomized triangle coefficients
+    float3 randomizedCoefficients = UniformRandomBarycentricCoefficients(id.x * 701 + id.y * 109, id.x * 461 + id.y * 1031);
+
+    // Get the triangle
+    float3 v0 = mul(_LocalToWorld, float4(_SourceVertices[_SourceTriangles[id.x * 3 + 0]], 1)).xyz;
+    float3 v1 = mul(_LocalToWorld, float4(_SourceVertices[_SourceTriangles[id.x * 3 + 1]], 1)).xyz;
+    float3 v2 = mul(_LocalToWorld, float4(_SourceVertices[_SourceTriangles[id.x * 3 + 2]], 1)).xyz;
+
+    // Get the triangle normals
+    float3 n0 = normalize(mul(_LocalToWorld, float4(_SourceNormals[_SourceTriangles[id.x * 3 + 0]], 0)).xyz);
+    float3 n1 = normalize(mul(_LocalToWorld, float4(_SourceNormals[_SourceTriangles[id.x * 3 + 1]], 0)).xyz);
+    float3 n2 = normalize(mul(_LocalToWorld, float4(_SourceNormals[_SourceTriangles[id.x * 3 + 2]], 0)).xyz);
+
+    // Get the triangle tangents
+    float4 t0 = _SourceTangents[_SourceTriangles[id.x * 3 + 0]];
+    float4 t1 = _SourceTangents[_SourceTriangles[id.x * 3 + 1]];
+    float4 t2 = _SourceTangents[_SourceTriangles[id.x * 3 + 2]];
+
+    // Calculate average position, normal, tangent and bitangent
+    float3 position = randomizedCoefficients.x * v0 + randomizedCoefficients.y * v1 + randomizedCoefficients.z * v2;
+    float3 normal = normalize(randomizedCoefficients.x * n0 + randomizedCoefficients.y * n1 + randomizedCoefficients.z * n2);
+    float3 tangent = normalize(randomizedCoefficients.x * t0.xyz + randomizedCoefficients.y * t1.xyz + randomizedCoefficients.z * t2.xyz);
+    float3 bitangent = normalize(cross(normal, tangent));
+
+    // Create tangent to world space matrix
+    float3x3 tangentToWorld = transpose(float3x3(tangent, bitangent, normal));
+
+    // Create the direction matrix
+    float3x3 directionMatrix = AngleAxis3x3(r2 *r2 * 2 * PI, float3(0, 0, 1));
+    float3 windDirectionWS = GetWindDirection(position, normal) * _WindStrength;
+
+    // Get the wind UV coordinate
+    float2 heightUV = (position.xz * _WindPositionScale) * _WindTextureScale;
+    float2 heightNoise = SAMPLE_TEXTURE2D_LOD(_WindTexture, sampler_WindTexture, heightUV, 0).rg * 2 - 1;
+
+    // Grass variation
+    float height = max(0, _GrassHeight + _GrassHeightVariation * (heightNoise.x + heightNoise.y));
+    float width = _GrassWidth + _GrassWidthVariation * (r  * r2 * 2 - 1);
+    float bend = _GrassBend + _GrassBendVariation * (r2 * 2 - 1);
+    float slant = _GrassSlant + _GrassSlantVariation * (r * r * 2 - 1);
+    float rigidity = _GrassRigidity + _GrassRigidityVariation * (r2 * 2 - 1);
+
+    // Cull the grass blade
+    if (CullGrassBlade(position, max(height, width), height, normal)) { return; }
+    
+    // Cull randomly based on the distance, to reduce the number of blades, and widen the remaining ones
+    if (r * (1 - height) > 250 / pow(distance(position, _CameraPositionWS), 2)) {
+        return;
+    } else {
+        width *= max(1, 10 - 75 / distance(position, _CameraPositionWS));
+    }
+
+    // Get the blade segment count
+    uint bladeSegmentCount = GetBladeSegments(position, height);
+    uint triangleCount = 2 * bladeSegmentCount - 1;
+
+    // Create the grass blade vertices
+    VertexInput vertices[MAX_BLADE_POINTS];
+    for (uint i = 0; i < 2 * bladeSegmentCount; i++) {
+        float h = (2*(i/2)) / (float)(2 * bladeSegmentCount);
+
+        // Calculate the offset for the vertex
+        float3 offsetTS = float3(-width + width * (i % 2) * 2, 0, height * h);
+        float3x3 bendMatrix = GetBladeBendMatrix(h, rigidity, bend);
+        float3x3 windMatrixWS = AngleAxis3x3(h * windDirectionWS.z, windDirectionWS);
+
+        // Add the vertex point to the blade
+        vertices[i].positionWS = position + mul(windMatrixWS, mul(tangentToWorld, mul(directionMatrix, mul(bendMatrix, offsetTS))));
+        vertices[i].uv = float2(i % 2, h);
+    }
+
+    // Add the tip
+    float3x3 bendMatrix = GetBladeBendMatrix(1, rigidity, bend);
+    float3x3 windMatrixWS = AngleAxis3x3(1 * windDirectionWS.z, windDirectionWS);
+    vertices[2 * bladeSegmentCount].positionWS = position + mul(windMatrixWS, mul(tangentToWorld, mul(directionMatrix, mul(bendMatrix, float3(0, 0, height)))));
+    vertices[2 * bladeSegmentCount].uv = float2(0.5, 1);
+
+    // Generate the triangles
+    for (i = 0; i < triangleCount; i++) {
+        DrawTriangle tri;
+        tri.normal = normal;
+        tri.vertices[0] = vertices[i];
+        tri.vertices[1] = vertices[i + 1];
+        tri.vertices[2] = vertices[i + 2];
+        _ProceduralTriangles.Append(tri);
+    }
+    
+    // Increase the vertex count
+    InterlockedAdd(_IndirectArgsBuffer[0].vertexCountPerInstance, triangleCount * 3);
+}
