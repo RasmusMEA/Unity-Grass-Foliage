@@ -1,0 +1,49 @@
+#pragma kernel DisplaceVertices
+#pragma kernel CalculateNormals
+
+// Input/ Output Mesh
+RWStructuredBuffer<int> _SourceTriangles;
+RWStructuredBuffer<float3> _SourceVertices;
+RWStructuredBuffer<float3> _SourceNormals;
+
+// Variables set by the renderer
+float4x4 _LocalToWorld;
+
+// Height function
+float SampleHeight(float x, float z) {
+    return x + z;
+}
+
+// Vertex displacement compute shader
+[numthreads(64,1,1)]
+void DisplaceVertices(uint3 id : SV_DispatchThreadID) {
+    if (id.x >= _SourceVertices.Length) { return; }
+
+    // Get the vertex in world space
+    float3 vertex = mul(_LocalToWorld, float4(_SourceVertices[id.x], 1.0)).xyz;
+    
+    // Calculate the height for vertex and update the position in world space
+    _SourceVertices[id.x] = float3(vertex.x, SampleHeight(vertex.x, vertex.z), vertex.z);
+
+    // Reset the normal
+    _SourceNormals[id.x] = float3(0, 0, 0);
+}
+
+// Normal calculation compute shader (un-normalized)
+[numthreads(64,1,1)]
+void CalculateNormals(uint3 id : SV_DispatchThreadID) {
+    if (id.x >= _SourceTriangles.Length / 3) { return; }
+    
+    // Get the vertices
+    float3 v0 = _SourceVertices[_SourceTriangles[id.x * 3 + 0]];
+    float3 v1 = _SourceVertices[_SourceTriangles[id.x * 3 + 1]];
+    float3 v2 = _SourceVertices[_SourceTriangles[id.x * 3 + 2]];
+
+    // Calculate the normal
+    float3 normal = cross(v1 - v0, v2 - v0);
+
+    // Add the normal to the vertices
+    _SourceNormals[_SourceTriangles[id.x * 3 + 0]] += normal;
+    _SourceNormals[_SourceTriangles[id.x * 3 + 1]] += normal;
+    _SourceNormals[_SourceTriangles[id.x * 3 + 2]] += normal;
+}
