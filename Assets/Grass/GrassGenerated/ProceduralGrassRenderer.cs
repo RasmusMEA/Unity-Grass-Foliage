@@ -248,5 +248,7 @@ public class ProceduralGrassRenderer : MonoBehaviour {
             true,
             gameObject.layer
         );
+
+        // TODO: Switch to Graphics.RenderPrimitivesIndexedIndirect with index buffer for better performance.
     }
 }

@@ -106,8 +106,8 @@ float SampleHeight(float x, float z) {
     float height = FBMErosion(float2(x / 32, z / 32), 15).x;
 
     // Carve a canyon
-    float sinSDF = CanyonCarve(float2(x, z), 20, 10, 1, 0, 100, 10, 0);
-    sinSDF += CanyonCarve(float2(x, z), 20, 10, 0.5, 0, 120, 8, 30);
+    float sinSDF = CanyonCarve(float2(x, z), 20, 10, 1, -10, 100, 10, 0);
+    sinSDF += CanyonCarve(float2(x, z), 20, 10, 0.5, 10, 120, 8, 30);
     height -= sinSDF;
 
     // Return the height
