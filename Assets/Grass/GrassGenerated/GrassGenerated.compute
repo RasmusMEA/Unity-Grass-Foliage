@@ -177,19 +177,19 @@ void Main(uint3 id : SV_DispatchThreadID) {
 
         // Add the vertex point to the blade
         vertices[i].positionWS = position + mul(windMatrixWS, mul(tangentToWorld, mul(directionMatrix, mul(bendMatrix, offsetTS))));
-        vertices[i].uv = float2(i % 2, h);
+        vertices[i].uv = half2(i % 2, h);
     }
 
     // Add the tip
     float3x3 bendMatrix = GetBladeBendMatrix(1, rigidity, bend);
     float3x3 windMatrixWS = AngleAxis3x3(1 * windDirectionWS.z, windDirectionWS);
     vertices[2 * bladeSegmentCount].positionWS = position + mul(windMatrixWS, mul(tangentToWorld, mul(directionMatrix, mul(bendMatrix, float3(0, 0, height)))));
-    vertices[2 * bladeSegmentCount].uv = float2(0.5, 1);
+    vertices[2 * bladeSegmentCount].uv = half2(0.5, 1);
 
     // Generate the triangles
     for (i = 0; i < triangleCount; i++) {
-        DrawTriangle tri;
-        tri.normal = normal;
+        DrawTriangle tri = (DrawTriangle)0;
+        tri.normal = half4(normal, 0);
         tri.vertices[0] = vertices[i];
         tri.vertices[1] = vertices[i + 1];
         tri.vertices[2] = vertices[i + 2];

@@ -38,7 +38,7 @@ public class ProceduralGrassRenderer : MonoBehaviour {
     private const int SOURCE_VERTEX_STRIDE = sizeof(float) * 3;
     private const int SOURCE_NORMAL_STRIDE = sizeof(float) * 3;
     private const int SOURCE_TANGENT_STRIDE = sizeof(float) * 4;
-    private const int DRAW_TRIANGLE_STRIDE = sizeof(float) * ((3 + 2) * 3 + 3);
+    private const int DRAW_TRIANGLE_STRIDE = (sizeof(float) * (3 + 1) + sizeof(short) * 2) * 3 + sizeof(short) * 4;
     private const int DRAW_ARGS_STRIDE = sizeof(int) * 4;
 
     // The data to reset the drawArgsBuffer with each frame.
@@ -201,8 +201,8 @@ public class ProceduralGrassRenderer : MonoBehaviour {
 
         // If in editor mode, reinitialize the renderer to make sure changes are applied.
         if (!Application.isPlaying) {
-            // OnDisable();
-            // OnEnable();
+            OnDisable();
+            OnEnable();
         }
 
         // If not initialized, try to initialize the renderer.
@@ -244,7 +244,7 @@ public class ProceduralGrassRenderer : MonoBehaviour {
             0, 
             null,
             null,
-            ShadowCastingMode.Off, 
+            ShadowCastingMode.On, 
             true,
             gameObject.layer
         );

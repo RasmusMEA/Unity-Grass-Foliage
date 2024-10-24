@@ -8,18 +8,29 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ShaderVariablesFunctions.hlsl"
 
+// // Maps each vertexID to the real vertex in the vertex buffer (allows for triangle strips)
+// StructuredBuffer<int> _Triangles;
+
+// // Buffer of vertices for the grass blades
+// StructuredBuffer<Vertex> _Vertices;
+
+// struct Vertex {
+//     float3 position;
+//     float2 uv;
+//     half3 normal;
+// };
+
 // Define the maximum number of blade segments that can be generated
 #define MAX_BLADE_SEGMENTS 5
 
 struct VertexInput {
     float3 positionWS : POSITION;
-    float2 uv : TEXCOORD0;
+    half2 uv : TEXCOORD0;
 };
 
 struct DrawTriangle {
-    //GrassBlade blade;
     VertexInput vertices[3];
-    float3 normal : NORMAL;
+    half4 normal : NORMAL;
 };
 
 struct GrassBlade {
@@ -30,9 +41,9 @@ struct GrassBlade {
 };
 
 struct VertexOutput {
-    float2 uv : TEXCOORD0;
+    half2 uv : TEXCOORD0;
     float3 positionWS : TEXCOORD1;
-    float3 normalWS : TEXCOORD2;
+    half4 normalWS : TEXCOORD2;
     
     float4 positionCS : SV_POSITION;
 };
@@ -53,16 +64,29 @@ VertexOutput vert(uint vertexID : SV_VertexID) {
     VertexInput vertex = tri.vertices[vertexID % 3];
 
     // Transform the vertex
-    output.positionCS = TransformObjectToHClip(vertex.positionWS);
     output.positionWS = vertex.positionWS.xyz;
     output.normalWS = tri.normal;
     output.uv = vertex.uv;
+
+    #ifdef SHADOW_CASTER_PASS
+        output.positionCS = TransformWorldToHClip(ApplyShadowBias(vertex.positionWS, output.normalWS, UNITY_MATRIX_I_V._m02_m12_m22));
+        #if UNITY_REVERSED_Z
+            output.positionCS.z = min(output.positionCS.z, output.positionCS.w * UNITY_NEAR_CLIP_VALUE);
+        #else
+            output.positionCS.z = max(output.positionCS.z, output.positionCS.w * UNITY_NEAR_CLIP_VALUE);
+        #endif
+    #else
+        output.positionCS = TransformObjectToHClip(vertex.positionWS);
+    #endif
 
     return output;
 }
 
 // Fragment shader
 half4 frag(VertexOutput input) : SV_Target {
+    #ifdef SHADOW_CASTER_PASS
+        return 0;
+    #endif
 
     // Get the color from the texture
     half3 color = lerp(_BottomColor.xyz, _TopColor.xyz, input.uv.y);
@@ -70,7 +94,7 @@ half4 frag(VertexOutput input) : SV_Target {
     // Gather data for lighting
     InputData lightingData = (InputData)0;
     lightingData.positionWS = input.positionWS;
-    lightingData.normalWS = input.normalWS;
+    lightingData.normalWS = input.normalWS.xyz;
     lightingData.viewDirectionWS = GetWorldSpaceViewDir(lightingData.positionWS);
     lightingData.shadowCoord = TransformWorldToShadowCoord(input.positionWS);
 

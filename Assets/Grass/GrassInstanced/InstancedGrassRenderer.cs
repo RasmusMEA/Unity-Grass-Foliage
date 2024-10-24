@@ -280,7 +280,7 @@ public class InstancedGrassRenderer : MonoBehaviour {
         bounds.Expand(Mathf.Max(m_grassHeight + m_grassHeightVariation, m_grassWidth + m_grassWidthVariation) * 2.0f);
         rp.worldBounds = bounds;
 
-        // Draw GPU Instanced cubes.
+        // Draw GPU Instanced meshes.
         Graphics.RenderMeshIndirect(rp, grassMesh, indirectDrawIndexedArgs);
     }
 }
