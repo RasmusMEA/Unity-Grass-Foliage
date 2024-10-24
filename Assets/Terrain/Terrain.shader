@@ -40,7 +40,8 @@ Shader "Terrain/Terrain"
         {
             Name "ShadowCaster"
             Tags { "LightMode" = "ShadowCaster" }
-
+            
+            Cull Off
             ColorMask 0 // Disable color writes
 
             HLSLPROGRAM

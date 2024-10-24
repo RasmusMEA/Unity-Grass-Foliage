@@ -21,8 +21,9 @@ public class ProceduralTerrainRenderer : MonoBehaviour {
 
     // Compute buffers to store the modified mesh data.
     private bool _isInitialized = false;                // Flag to check if the renderer has been initialized.
-    private ComputeBuffer sourceVerticesBuffer;         // Buffer to store the source mesh vertices.
     private ComputeBuffer sourceTrianglesBuffer;        // Buffer to store the source mesh triangles.
+    private ComputeBuffer sourceVerticesBuffer;         // Buffer to store the source mesh vertices.
+    private ComputeBuffer outputVerticesBuffer;         // Buffer to store the modified mesh vertices.
     private ComputeBuffer sourceNormalsBuffer;          // Buffer to store the source mesh normals.
     private ComputeBuffer sourceUVsBuffer;              // Buffer to store the source mesh UVs.
     private ComputeBuffer drawArgsBuffer;               // Buffer to store the draw arguments.
@@ -66,6 +67,8 @@ public class ProceduralTerrainRenderer : MonoBehaviour {
         // Initialize the compute shader buffers.
         sourceTrianglesBuffer = new ComputeBuffer(sourceMesh.triangles.Length, SOURCE_TRIANGLE_STRIDE, ComputeBufferType.Structured, ComputeBufferMode.Immutable);
         sourceTrianglesBuffer.SetData(sourceMesh.triangles);
+        outputVerticesBuffer = new ComputeBuffer(sourceMesh.vertices.Length, SOURCE_VERTEX_STRIDE, ComputeBufferType.Structured, ComputeBufferMode.Immutable);
+        outputVerticesBuffer.SetData(sourceMesh.vertices);
         sourceVerticesBuffer = new ComputeBuffer(sourceMesh.vertices.Length, SOURCE_VERTEX_STRIDE, ComputeBufferType.Structured, ComputeBufferMode.Immutable);
         sourceVerticesBuffer.SetData(sourceMesh.vertices);
         sourceNormalsBuffer = new ComputeBuffer(sourceMesh.normals.Length, SOURCE_NORMAL_STRIDE, ComputeBufferType.Structured, ComputeBufferMode.Immutable);
@@ -82,14 +85,15 @@ public class ProceduralTerrainRenderer : MonoBehaviour {
         // Set compute shader buffers.
         instantiatedTerrainComputeShader.SetBuffer(idVertexDisplacementKernel, "_SourceTriangles", sourceTrianglesBuffer);
         instantiatedTerrainComputeShader.SetBuffer(idVertexDisplacementKernel, "_SourceVertices", sourceVerticesBuffer);
+        instantiatedTerrainComputeShader.SetBuffer(idVertexDisplacementKernel, "_OutputVertices", outputVerticesBuffer);
         instantiatedTerrainComputeShader.SetBuffer(idVertexDisplacementKernel, "_SourceNormals", sourceNormalsBuffer);
         instantiatedTerrainComputeShader.SetBuffer(idNormalsKernel, "_SourceTriangles", sourceTrianglesBuffer);
-        instantiatedTerrainComputeShader.SetBuffer(idNormalsKernel, "_SourceVertices", sourceVerticesBuffer);
+        instantiatedTerrainComputeShader.SetBuffer(idNormalsKernel, "_SourceVertices", outputVerticesBuffer);
         instantiatedTerrainComputeShader.SetBuffer(idNormalsKernel, "_SourceNormals", sourceNormalsBuffer);
 
         // Set the material properties.
         meshRenderer.sharedMaterial.SetBuffer("_Triangles", sourceTrianglesBuffer);
-        meshRenderer.sharedMaterial.SetBuffer("_Vertices", sourceVerticesBuffer);
+        meshRenderer.sharedMaterial.SetBuffer("_Vertices", outputVerticesBuffer);
         meshRenderer.sharedMaterial.SetBuffer("_Normals", sourceNormalsBuffer);
         meshRenderer.sharedMaterial.SetBuffer("_UVs", sourceUVsBuffer);
 
@@ -108,6 +112,7 @@ public class ProceduralTerrainRenderer : MonoBehaviour {
         // Release the compute shader buffers.
         sourceTrianglesBuffer?.Release();
         sourceVerticesBuffer?.Release();
+        outputVerticesBuffer?.Release();
         sourceNormalsBuffer?.Release();
         sourceUVsBuffer?.Release();
         drawArgsBuffer?.Release();
@@ -138,7 +143,7 @@ public class ProceduralTerrainRenderer : MonoBehaviour {
 
         // Update compute shader with frame specific data.
         instantiatedTerrainComputeShader.SetVector("_Time", new Vector4(0, Time.timeSinceLevelLoad, 0, 0));
-        instantiatedTerrainComputeShader.SetMatrix("_LocalToWorld", transform.localToWorldMatrix);
+        instantiatedTerrainComputeShader.SetVector("_Offset", transform.position);
 
         // Dispatch the compute shader.
         instantiatedTerrainComputeShader.Dispatch(idVertexDisplacementKernel, vertexDisplacementDispatchSize.x, vertexDisplacementDispatchSize.y, vertexDisplacementDispatchSize.z);

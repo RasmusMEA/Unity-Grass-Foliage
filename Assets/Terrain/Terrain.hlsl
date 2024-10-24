@@ -18,7 +18,7 @@ struct VertexOutput {
 // Input from compute shader
 StructuredBuffer<int> _Triangles;
 StructuredBuffer<float3> _Vertices;
-StructuredBuffer<float3> _Normals;
+StructuredBuffer<int3> _Normals;
 StructuredBuffer<float2> _UVs;
 
 // Vertex shader
@@ -29,9 +29,9 @@ VertexOutput vert(uint id : SV_VertexID) {
     id = _Triangles[id];
 
     // Transform the vertex
-    output.positionCS = TransformObjectToHClip(_Vertices[id]);
-    output.positionWS = _Vertices[id];
-    output.normalWS = normalize(_Normals[id]);
+    output.positionWS = mul(unity_ObjectToWorld, float4(_Vertices[id], 1)).xyz;
+    output.positionCS = TransformObjectToHClip(output.positionWS);
+    output.normalWS = normalize(float3(_Normals[id]));
     output.uv = _UVs[id];
 
     return output;
@@ -41,7 +41,10 @@ VertexOutput vert(uint id : SV_VertexID) {
 half4 frag(VertexOutput input) : SV_Target {
 
     // Get the color
-    half3 color = half3(0.2, 0.8, 0.2);
+    half3 color = lerp(half3(0.2, 0.2, 0.2), half3(0.2, 0.8, 0.2), saturate(input.positionWS.y / 15));
+
+    // Color slanted surfaces with a different color
+    color = lerp(half3(0.4, 0.4, 0.4), color, saturate(dot(input.normalWS, float3(0, 1, 0))));
 
     // Gather data for lighting
     InputData lightingData = (InputData)0;
