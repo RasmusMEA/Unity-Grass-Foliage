@@ -18,11 +18,12 @@ public class RoundedPosition : MonoBehaviour {
 
     // Update is called once per frame
     void Update() {
-        Vector3 position = targetPosition.position;
+
+        // Round the position to the nearest step size.
         transform.position = new Vector3(
-            Mathf.Round(position.x / stepSize) * stepSize,
+            Mathf.Round(targetPosition.position.x / stepSize) * stepSize,
             0,
-            Mathf.Round(position.z / stepSize) * stepSize
+            Mathf.Round(targetPosition.position.z / stepSize) * stepSize
         );
     }
 }

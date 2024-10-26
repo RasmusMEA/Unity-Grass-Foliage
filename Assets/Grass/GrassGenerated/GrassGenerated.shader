@@ -73,72 +73,72 @@ Shader "Grass/GrassGenerated"
             ENDHLSL
         }
 
-        // // Enable Depth Priming (SSAO uses Depth as source)
-        // Pass
-        // {
-        //     Name "DepthOnly"
-        //     Tags { "LightMode" = "DepthOnly" }
+        // Enable Depth Priming (SSAO uses Depth as source)
+        Pass
+        {
+            Name "DepthOnly"
+            Tags { "LightMode" = "DepthOnly" }
 
-        //     ZWrite On
-        //     ColorMask 0
-        //     Cull Off
+            ZWrite On
+            ColorMask 0
+            Cull Off
 
-        //     HLSLPROGRAM
+            HLSLPROGRAM
             
-        //     // Signal this shader requires a compute buffer
-        //     #pragma prefer_hlslcc gles
-        //     #pragma exclude_renderers d3d11_9x
-        //     #pragma target 5.0
+            // Signal this shader requires a compute buffer
+            #pragma prefer_hlslcc gles
+            #pragma exclude_renderers d3d11_9x
+            #pragma target 5.0
 
-        //     // Register keywords
-        //     #pragma shader_feature _ALPHATEST_ON
+            // Register keywords
+            #pragma shader_feature _ALPHATEST_ON
             
-        //     // Register functions
-        //     #pragma vertex vert
-        //     #pragma fragment DepthOnlyFragment
+            // Register functions
+            #pragma vertex vert
+            #pragma fragment DepthOnlyFragment
 
-        //     // Include logic files
-        //     #include "GrassGenerated.hlsl"
+            // Include logic files
+            #include "GrassGenerated.hlsl"
 
-        //     half DepthOnlyFragment(VertexOutput input) : SV_TARGET {
-        //         return input.positionCS.z;
-        //     }
+            half DepthOnlyFragment(VertexOutput input) : SV_TARGET {
+                return input.positionCS.z;
+            }
 
-        //     ENDHLSL
-        // }
+            ENDHLSL
+        }
 
-        // // Enable Depth Priming (when SSAO uses DepthNormals as source)
-        // Pass
-        // {
-        //     Name "DepthNormalsOnly"
-        //     Tags { "LightMode" = "DepthNormalsOnly" }
+        // Enable Depth Priming (when SSAO uses DepthNormals as source)
+        Pass
+        {
+            Name "DepthNormalsOnly"
+            Tags { "LightMode" = "DepthNormalsOnly" }
 
-        //     ZWrite On
-        //     ColorMask 0
-        //     Cull Off
+            ZWrite On
+            ColorMask 0
+            Cull Off
 
-        //     HLSLPROGRAM
+            HLSLPROGRAM
             
-        //     // Signal this shader requires a compute buffer
-        //     #pragma prefer_hlslcc gles
-        //     #pragma exclude_renderers d3d11_9x
-        //     #pragma target 5.0
+            // Signal this shader requires a compute buffer
+            #pragma prefer_hlslcc gles
+            #pragma exclude_renderers d3d11_9x
+            #pragma target 5.0
 
-        //     // Register keywords
-        //     #pragma shader_feature _ALPHATEST_ON
+            // Register keywords
+            #pragma shader_feature _ALPHATEST_ON
             
-        //     // Register functions
-        //     #pragma vertex vert
-        //     #pragma fragment DepthOnlyFragment
+            // Register functions
+            #pragma vertex vert
+            #pragma fragment DepthOnlyFragment
 
-        //     // Include logic files
-        //     #include "GrassGenerated.hlsl"
+            // Include logic files
+            #include "GrassGenerated.hlsl"
 
-        //     half4 DepthOnlyFragment(VertexOutput input) : SV_TARGET {
-        //         return half4(NormalizeNormalPerPixel(input.normalWS), 0.0);
-        //     }
+            half4 DepthOnlyFragment(VertexOutput input) : SV_TARGET {
+                return half4(NormalizeNormalPerPixel(input.normalWS), 0.0);
+            }
 
-        //     ENDHLSL
-        // }
+            ENDHLSL
+        }
     }
 }

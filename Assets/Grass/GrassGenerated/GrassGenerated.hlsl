@@ -25,25 +25,25 @@
 
 struct VertexInput {
     float3 positionWS : POSITION;
-    half2 uv : TEXCOORD0;
+    float2 uv : TEXCOORD0;
 };
 
 struct DrawTriangle {
     VertexInput vertices[3];
-    half4 normal : NORMAL;
+    float3 normal : NORMAL;
 };
 
-struct GrassBlade {
-    // Can be used to find source triangle uv, normal and position,
-    // allowing for color blending against the terrain
-    int sourceTriangleIndex;
-    half3 barycentricCoefficients;
-};
+// struct GrassBlade {
+//     // Can be used to find source triangle uv, normal and position,
+//     // allowing for color blending against the terrain
+//     int sourceTriangleIndex;
+//     half3 barycentricCoefficients;
+// };
 
 struct VertexOutput {
-    half2 uv : TEXCOORD0;
+    float2 uv : TEXCOORD0;
     float3 positionWS : TEXCOORD1;
-    half4 normalWS : TEXCOORD2;
+    float3 normalWS : TEXCOORD2;
     
     float4 positionCS : SV_POSITION;
 };

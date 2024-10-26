@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-[RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
+[ExecuteInEditMode, RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class ProceduralTerrainRenderer : MonoBehaviour {
 
     // References
@@ -12,13 +12,16 @@ public class ProceduralTerrainRenderer : MonoBehaviour {
     private MeshFilter meshFilter;
     private MeshRenderer meshRenderer;
 
+    // Last updated position.
+    private Vector3 lastPosition = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+
     // Instantiated compute shader to modify mesh.
     private ComputeShader instantiatedTerrainComputeShader;
     private Mesh modifiedMesh;
 
-    // Buffers tohat store the mesh data.
-    GraphicsBuffer indexBuffer;
-    GraphicsBuffer vertexBuffer;
+    // Buffers that store the mesh data.
+    public GraphicsBuffer indexBuffer;
+    public GraphicsBuffer vertexBuffer;
 
     // Local instance compute shader variables.
     private bool _isInitialized = false;
@@ -36,10 +39,12 @@ public class ProceduralTerrainRenderer : MonoBehaviour {
         meshFilter = GetComponent<MeshFilter>();
         meshRenderer = GetComponent<MeshRenderer>();
 
-        // Deep copy the mesh from the mesh filter, upload mesh data to the GPU, and set the additional vertex streams.
-        modifiedMesh = meshFilter.mesh;
-        modifiedMesh.UploadMeshData(true);
+        // Deep copy the mesh from the mesh filter if it hasn't already been
+        // Then upload mesh data to the GPU, and set the additional vertex streams.
+        modifiedMesh = meshFilter.sharedMesh.name.Contains("Instance") ? meshFilter.sharedMesh : meshFilter.mesh;
+        modifiedMesh.UploadMeshData(false);
         meshRenderer.additionalVertexStreams = modifiedMesh;
+        meshFilter.mesh = modifiedMesh;
         
         // If initialized, call OnDisable to clean up.
         if (_isInitialized) { OnDisable(); }
@@ -78,6 +83,9 @@ public class ProceduralTerrainRenderer : MonoBehaviour {
         calculateNormalsDispatchSize = new Vector3Int(Mathf.CeilToInt((float)modifiedMesh.GetIndexCount(0) / threadGroupSizeNormals), 1, 1);
         normalizeNormalsDispatchSize = new Vector3Int(Mathf.CeilToInt((float)modifiedMesh.vertices.Length / threadGroupSizeNormalizeNormals), 1, 1);
 
+        // Update bounds to avoid culling on the mesh.
+        meshFilter.sharedMesh.bounds.Expand(new Vector3(0, 1000, 0));
+
         // Set the initialized flag.
         _isInitialized = true;
     }
@@ -112,13 +120,19 @@ public class ProceduralTerrainRenderer : MonoBehaviour {
         if (!_isInitialized) { OnEnable(); }
         if (!_isInitialized) { return; }
 
-        // Update compute shader with frame specific data.
-        instantiatedTerrainComputeShader.SetVector("_Time", new Vector4(0, Time.timeSinceLevelLoad, 0, 0));
-        instantiatedTerrainComputeShader.SetVector("_OffsetWS", transform.position);
+        // If the position has changed, update the compute shader.
+        if (lastPosition != transform.position) {
+            lastPosition = transform.position;
 
-        // Dispatch the compute shader.
-        instantiatedTerrainComputeShader.Dispatch(idVertexDisplacementKernel, vertexDisplacementDispatchSize.x, vertexDisplacementDispatchSize.y, vertexDisplacementDispatchSize.z);
-        instantiatedTerrainComputeShader.Dispatch(idNormalsKernel, calculateNormalsDispatchSize.x, calculateNormalsDispatchSize.y, calculateNormalsDispatchSize.z);
-        instantiatedTerrainComputeShader.Dispatch(idNormalizeNormalsKernel, normalizeNormalsDispatchSize.x, normalizeNormalsDispatchSize.y, normalizeNormalsDispatchSize.z);
+            // Update compute shader with frame specific data.
+            instantiatedTerrainComputeShader.SetVector("_Time", new Vector4(0, Time.timeSinceLevelLoad, 0, 0));
+            instantiatedTerrainComputeShader.SetMatrix("_LocalToWorld", transform.localToWorldMatrix);
+            instantiatedTerrainComputeShader.SetMatrix("_WorldToLocal", transform.worldToLocalMatrix);
+
+            // Dispatch the compute shader.
+            instantiatedTerrainComputeShader.Dispatch(idVertexDisplacementKernel, vertexDisplacementDispatchSize.x, vertexDisplacementDispatchSize.y, vertexDisplacementDispatchSize.z);
+            //instantiatedTerrainComputeShader.Dispatch(idNormalsKernel, calculateNormalsDispatchSize.x, calculateNormalsDispatchSize.y, calculateNormalsDispatchSize.z);
+            //instantiatedTerrainComputeShader.Dispatch(idNormalizeNormalsKernel, normalizeNormalsDispatchSize.x, normalizeNormalsDispatchSize.y, normalizeNormalsDispatchSize.z);
+        }
     }
 }

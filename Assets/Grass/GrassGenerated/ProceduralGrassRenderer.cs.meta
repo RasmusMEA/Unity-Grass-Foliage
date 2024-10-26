@@ -8,7 +8,7 @@ MonoImporter:
   - grassComputeShader: {fileID: 7200000, guid: 2197e240bed0282458d5245d8c7d35f8,
       type: 3}
   - material: {fileID: 2100000, guid: 69c3a569b936b304081864e5c7a4bcf3, type: 2}
-  executionOrder: 0
+  executionOrder: 5
   icon: {instanceID: 0}
   userData: 
   assetBundleName: 

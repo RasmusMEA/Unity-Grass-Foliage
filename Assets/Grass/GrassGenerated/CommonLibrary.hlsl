@@ -3,12 +3,12 @@
 #define COMMONLIBRARY_HLSL
 
 // Returns a pseudorandom number. By Ronja Böhringer
-float rand(float4 value) {
-    float4 smallValue = sin(value);
-    float random = dot(smallValue, float4(12.9898, 78.233, 37.719, 9.151));
-    random = frac(sin(random) * 143758.5453);
-    return random;
-}
+// float rand(float4 value) {
+//     float4 smallValue = sin(value);
+//     float random = dot(smallValue, float4(12.9898, 78.233, 37.719, 9.151));
+//     random = frac(sin(random) * 143758.5453);
+//     return random;
+// }
 
 float rand(uint seed) {
     seed = (seed ^ 61) ^ (seed >> 16);
@@ -16,14 +16,6 @@ float rand(uint seed) {
     seed = seed ^ (seed >> 4);
     seed *= 0x27d4eb2d;
     seed = seed ^ (seed >> 15);
-    return ((float)seed) / float(0xffffffff);
-}
-
-// Xorshift algorithm from George Marsaglia's paper
-float rand_xorshift(uint seed) {
-    seed ^= (seed << 13);
-    seed ^= (seed >> 17);
-    seed ^= (seed << 5);
     return ((float)seed) / float(0xffffffff);
 }
 
@@ -48,7 +40,7 @@ float3x3 AngleAxis3x3(float angle, float3 axis) {
 
 // https://math.stackexchange.com/questions/18686/uniform-random-point-in-triangle-in-3d
 float3 UniformRandomBarycentricCoefficients(float seedA, float seedB) {
-    float r1 = rand_xorshift(seedA), r2 = rand_xorshift(seedB);
+    float r1 = rand(seedA), r2 = rand(seedB);
     if (r1 + r2 > 1) {
         r1 = 1 - r1;
         r2 = 1 - r2;

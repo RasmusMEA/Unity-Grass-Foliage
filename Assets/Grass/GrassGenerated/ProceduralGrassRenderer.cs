@@ -3,42 +3,36 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-[ExecuteInEditMode]
-[RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
+[ExecuteInEditMode, DefaultExecutionOrder(+1), RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class ProceduralGrassRenderer : MonoBehaviour {
 
     // References
-    [Tooltip("The mesh to used to render the grass on.")]
-    [SerializeField] private Mesh sourceMesh;
     [Tooltip("The compute shader to use to generate the grass.")]
     [SerializeField] private ComputeShader grassComputeShader;
     [Tooltip("The material to use to render the grass.")]
     [SerializeField] private Material material;
     private MeshRenderer meshRenderer;
+    private MeshFilter meshFilter;
 
     // Instantiated compute shader and material.
     private ComputeShader instantiatedGrassComputeShader;       // Compute shader to generate the grass.
     private Material instantiatedMaterial;                      // Material to render the grass.
 
+    // Buffers that store the mesh data.
+    private GraphicsBuffer indexBuffer;
+    private GraphicsBuffer vertexBuffer;
+
     // Compute buffers to store the grass blades.
     private bool _isInitialized = false;                // Flag to check if the renderer has been initialized.
-    private ComputeBuffer sourceVerticesBuffer;         // Buffer to store the source mesh vertices.
-    private ComputeBuffer sourceTrianglesBuffer;        // Buffer to store the source mesh triangles.
-    private ComputeBuffer sourceNormalsBuffer;          // Buffer to store the source mesh normals.
-    private ComputeBuffer sourceTangentsBuffer;         // Buffer to store the source mesh tangents.
     private ComputeBuffer drawTrianglesBuffer;          // Buffer to store the generated grass triangles.
     private ComputeBuffer drawArgsBuffer;               // Buffer to store the arguments for the draw command.
 
     // Local instance compute shader variables.
     private int idGrassKernel;
-    private Vector3Int dispatchSize = new Vector3Int(64, 8, 1);
+    private Vector3Int dispatchSize = new Vector3Int(8, 8, 1);
 
     // The size of a singular element in the compute buffers.
-    private const int SOURCE_TRIANGLE_STRIDE = sizeof(int);
-    private const int SOURCE_VERTEX_STRIDE = sizeof(float) * 3;
-    private const int SOURCE_NORMAL_STRIDE = sizeof(float) * 3;
-    private const int SOURCE_TANGENT_STRIDE = sizeof(float) * 4;
-    private const int DRAW_TRIANGLE_STRIDE = (sizeof(float) * (3 + 1) + sizeof(short) * 2) * 3 + sizeof(short) * 4;
+    private const int DRAW_TRIANGLE_STRIDE = sizeof(float) * (3 + 2) * 3 + sizeof(float) * 3;
     private const int DRAW_ARGS_STRIDE = sizeof(int) * 4;
 
     // The data to reset the drawArgsBuffer with each frame.
@@ -81,12 +75,13 @@ public class ProceduralGrassRenderer : MonoBehaviour {
     void OnEnable() {
 
         // Get mesh data, if no mesh then return.
-        sourceMesh = GetComponent<MeshFilter>().sharedMesh;
+        meshFilter = GetComponent<MeshFilter>();
         meshRenderer = GetComponent<MeshRenderer>();
+        Mesh mesh = meshFilter.sharedMesh;
 
         // Check if the mesh, compute shader, and material are set.
-        if (sourceMesh == null || grassComputeShader == null || material == null) {
-            Debug.Assert(sourceMesh != null, "Mesh is not set.", this);
+        if (mesh == null || grassComputeShader == null || material == null) {
+            Debug.Assert(mesh != null, "Mesh is not set.", this);
             Debug.Assert(grassComputeShader != null, "Compute shader is not set.", this);
             Debug.Assert(material != null, "Material is not set.", this);
             return;
@@ -99,40 +94,45 @@ public class ProceduralGrassRenderer : MonoBehaviour {
         instantiatedGrassComputeShader = Instantiate(grassComputeShader);
         instantiatedMaterial = Instantiate(material);
 
+        // Cache the compute shader kernel.
+        idGrassKernel = instantiatedGrassComputeShader.FindKernel("Main");
+
         // Calculate the total number of grass triangles.
-        int sourceTriangleCount = sourceMesh.triangles.Length / 3;
+        int sourceTriangleCount = mesh.triangles.Length / 3;
         int grassBladeTriangleCount = (2 * m_maxBladeSegments - 1);
 
+        // Get the vertex and index buffers from the mesh.
+        mesh.indexBufferTarget |= GraphicsBuffer.Target.Raw;
+        mesh.vertexBufferTarget |= GraphicsBuffer.Target.Raw;
+        ProceduralTerrainRenderer terrainRenderer = GetComponent<ProceduralTerrainRenderer>();
+        indexBuffer = mesh.GetIndexBuffer();
+        vertexBuffer = mesh.GetVertexBuffer(0);
+
+        // Set vertex buffer and other data for the compute shader.
+        instantiatedGrassComputeShader.SetBuffer(idGrassKernel, "_VertexBuffer", vertexBuffer);
+        instantiatedGrassComputeShader.SetBuffer(idGrassKernel, "_IndexBuffer", indexBuffer);
+
+        instantiatedGrassComputeShader.SetInt("_IndexCount", (int)mesh.GetIndexCount(0));
+        instantiatedGrassComputeShader.SetInt("_VertexCount", mesh.vertexCount);
+        instantiatedGrassComputeShader.SetInt("_IndexStride", mesh.indexFormat == IndexFormat.UInt32 ? 4 : 2);
+        instantiatedGrassComputeShader.SetInt("_VertexStride", mesh.GetVertexBufferStride(0));
+
+        instantiatedGrassComputeShader.SetInt("_PositionOffset", mesh.GetVertexAttributeOffset(VertexAttribute.Position));
+        instantiatedGrassComputeShader.SetInt("_NormalOffset", mesh.GetVertexAttributeOffset(VertexAttribute.Normal));
+        instantiatedGrassComputeShader.SetInt("_TangentOffset", mesh.GetVertexAttributeOffset(VertexAttribute.Tangent));
+
         // Initialize the compute shader buffers.
-        sourceTrianglesBuffer = new ComputeBuffer(sourceMesh.triangles.Length, SOURCE_TRIANGLE_STRIDE, ComputeBufferType.Structured, ComputeBufferMode.Immutable);
-        sourceTrianglesBuffer.SetData(sourceMesh.triangles);
-        sourceVerticesBuffer = new ComputeBuffer(sourceMesh.vertices.Length, SOURCE_VERTEX_STRIDE, ComputeBufferType.Structured, ComputeBufferMode.Immutable);
-        sourceVerticesBuffer.SetData(sourceMesh.vertices);
-        sourceNormalsBuffer = new ComputeBuffer(sourceMesh.normals.Length, SOURCE_NORMAL_STRIDE, ComputeBufferType.Structured, ComputeBufferMode.Immutable);
-        sourceNormalsBuffer.SetData(sourceMesh.normals);
-        sourceTangentsBuffer = new ComputeBuffer(sourceMesh.tangents.Length, SOURCE_TANGENT_STRIDE, ComputeBufferType.Structured, ComputeBufferMode.Immutable);
-        sourceTangentsBuffer.SetData(sourceMesh.tangents);
         drawTrianglesBuffer = new ComputeBuffer(sourceTriangleCount * grassBladeTriangleCount * m_grassBladesPerTriangle, DRAW_TRIANGLE_STRIDE, ComputeBufferType.Append);
         drawTrianglesBuffer.SetCounterValue(0);
         drawArgsBuffer = new ComputeBuffer(1, DRAW_ARGS_STRIDE, ComputeBufferType.IndirectArguments);
 
-        // Cache the compute shader kernel.
-        idGrassKernel = instantiatedGrassComputeShader.FindKernel("Main");
-
         // Set compute shader buffers.
-        instantiatedGrassComputeShader.SetBuffer(idGrassKernel, "_SourceTriangles", sourceTrianglesBuffer);
-        instantiatedGrassComputeShader.SetBuffer(idGrassKernel, "_SourceVertices", sourceVerticesBuffer);
-        instantiatedGrassComputeShader.SetBuffer(idGrassKernel, "_SourceNormals", sourceNormalsBuffer);
-        instantiatedGrassComputeShader.SetBuffer(idGrassKernel, "_SourceTangents", sourceTangentsBuffer);
         instantiatedGrassComputeShader.SetBuffer(idGrassKernel, "_ProceduralTriangles", drawTrianglesBuffer);
         instantiatedGrassComputeShader.SetBuffer(idGrassKernel, "_IndirectArgsBuffer", drawArgsBuffer);
         instantiatedGrassComputeShader.SetVectorArray("_CameraFrustumPlanes", new Vector4[6]);
 
         // Set compute shader textures.
-        if (m_windNoiseTexture != null)
-            instantiatedGrassComputeShader.SetTexture(idGrassKernel, "_WindTexture", m_windNoiseTexture);
-        else 
-            instantiatedGrassComputeShader.SetTexture(idGrassKernel, "_WindTexture", Texture2D.whiteTexture);
+        instantiatedGrassComputeShader.SetTexture(idGrassKernel, "_WindTexture", m_windNoiseTexture != null ? m_windNoiseTexture : Texture2D.blackTexture);
 
         // Set compute shader variables.
         instantiatedGrassComputeShader.SetVector("_LODSettings", new Vector3(m_cameraLODNear, m_cameraLODFar, m_cameraLODFactor));
@@ -176,10 +176,8 @@ public class ProceduralGrassRenderer : MonoBehaviour {
     void OnDisable() {
 
         // Release the compute shader buffers.
-        sourceTrianglesBuffer?.Release();
-        sourceVerticesBuffer?.Release();
-        sourceNormalsBuffer?.Release();
-        sourceTangentsBuffer?.Release();
+        indexBuffer?.Release();
+        vertexBuffer?.Release();
         drawTrianglesBuffer?.Release();
         drawArgsBuffer?.Release();
 
@@ -198,15 +196,6 @@ public class ProceduralGrassRenderer : MonoBehaviour {
 
     // LateUpdate is called after all Update functions have been called.
     void LateUpdate() {
-
-        // If in editor mode, reinitialize the renderer to make sure changes are applied.
-        if (!Application.isPlaying) {
-            OnDisable();
-            OnEnable();
-        }
-
-        // If not initialized, try to initialize the renderer.
-        if (!_isInitialized) { OnEnable(); }
         if (!_isInitialized) { return; }
 
         // Clear the draw and indirect args buffers from the previous frame.
@@ -231,7 +220,7 @@ public class ProceduralGrassRenderer : MonoBehaviour {
         // Dispatch the compute shader.
         instantiatedGrassComputeShader.Dispatch(idGrassKernel, dispatchSize.x, dispatchSize.y, dispatchSize.z);
 
-        // // Draw bounds for debugging.
+        // Get the bounds of the mesh renderer.
         Bounds bounds = meshRenderer.bounds;
         bounds.Expand(Mathf.Max(m_grassHeight + m_grassHeightVariation, m_grassWidth + m_grassWidthVariation) * 2.0f);
 
@@ -244,7 +233,7 @@ public class ProceduralGrassRenderer : MonoBehaviour {
             0, 
             null,
             null,
-            ShadowCastingMode.On, 
+            ShadowCastingMode.Off, 
             true,
             gameObject.layer
         );
