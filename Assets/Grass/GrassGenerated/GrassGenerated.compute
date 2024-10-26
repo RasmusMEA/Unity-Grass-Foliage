@@ -103,7 +103,7 @@ bool CullGrassBlade(float3 position, float radius, float height, float3 normal) 
     cull = cull | FrustumCull(position, radius);
 
     // Parameter culling
-    cull = cull | position.y < 0 || dot(normal, float3(0, 1, 0)) < 0.87;
+    //cull = cull | position.y < 0 || dot(normal, float3(0, 1, 0)) < 0.87;
 
     // Occlusion culling
 
@@ -165,8 +165,8 @@ void Main(uint3 id : SV_DispatchThreadID) {
 
     // Translate the position to world space
     position = mul(_LocalToWorld, float4(position, 1)).xyz;
-    normal = mul(_LocalToWorld, float4(normal, 0)).xyz;
-    tangent = mul(_LocalToWorld, float4(tangent, 0)).xyz;
+    normal = normalize(mul(_LocalToWorld, float4(normal, 0)).xyz);
+    tangent = normalize(mul(_LocalToWorld, float4(tangent, 0)).xyz);
 
     // Create tangent to world space matrix
     float3 bitangent = normalize(cross(normal, tangent));
