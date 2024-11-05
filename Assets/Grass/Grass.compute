@@ -75,7 +75,7 @@ void Main(uint3 id : SV_DispatchThreadID) {
     float3x3 tangentToWorld = transpose(float3x3(tangent, bitangent, normal));
 
     // Create the direction matrix
-    float3x3 directionMatrix = AngleAxis3x3(r2 *r2 * 2 * PI, float3(0, 0, 1));
+    float3x3 directionMatrix = AngleAxis3x3(r2 * r2 * 2 * PI, float3(0, 0, 1));
     float3 windDirectionWS = GetWindDirection(position, normal) * _WindStrength;
 
     // Get the wind UV coordinate
@@ -92,7 +92,7 @@ void Main(uint3 id : SV_DispatchThreadID) {
     // Cull the grass blade
     if (CullGrassBlade(position, max(height, width), height, normal)) { return; }
     
-    // Cull randomly based on the distance, to reduce the number of blades, and widen the remaining ones
+    // Cull randomly based on the distance, to reduce the number of blades
     if (r * (1 - height) > 250 / pow(distance(position, _CameraPositionWS), 2)) {
         return;
     } else {

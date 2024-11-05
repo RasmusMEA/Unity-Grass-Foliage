@@ -116,20 +116,8 @@ float SampleHeight(float x, float z) {
     // Get the height from the heightmap
     float height = FBMErosion(float2(x / 300, z / 300), 10).x * 150;
 
-    // Carve a canyon
-	
-	// Get canyon depth
-	float sinSDF = CanyonCarve(float2(x, z), 40, 10, 40, 0, 2500, 100, 0);
-	sinSDF += CanyonCarve(float2(x, z), 20, 80, 40, 0, 2500, 100, 0);
-	sinSDF += CanyonCarve(float2(x, z), 10, 130, 40, 0, 2500, 100, 0);
-
-    // Decrease the height of the terrain in the canyon
-    height *= min(1, 60 / sinSDF);
-
-    height -= sinSDF;
-    
     // Return the height
-    return height + 70;
+    return height;
 }
 
 
