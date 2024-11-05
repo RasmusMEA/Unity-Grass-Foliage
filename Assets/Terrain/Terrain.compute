@@ -33,6 +33,7 @@ void DisplaceVertices(uint3 id : SV_DispatchThreadID) {
     float3 vertex = asfloat(_VertexBuffer.Load3(id.x * _VertexStride + _PositionOffset));
     float3 vertexWS = mul(_LocalToWorld, float4(vertex, 1)).xyz;
     vertex.y = SampleHeight(vertexWS.x, vertexWS.z);
+    vertexWS.y = vertex.y;
     
     // Update the vertex
     _VertexBuffer.Store3(id.x * _VertexStride + _PositionOffset, asuint(vertex));
@@ -42,10 +43,10 @@ void DisplaceVertices(uint3 id : SV_DispatchThreadID) {
 
     // Temporary normal calculation
     float3 offsetWS = mul(_LocalToWorld, float4(0.1, 0, 0.1, 0)).xyz;
-    float3 v0 = float3(vertex.x + 0.1, SampleHeight(vertexWS.x + offsetWS.x, vertexWS.z), vertex.z);
-    float3 v1 = float3(vertex.x, SampleHeight(vertexWS.x, vertexWS.z + offsetWS.z), vertex.z + 0.1);
+    float3 v0 = float3(vertexWS.x + offsetWS.x, SampleHeight(vertexWS.x + offsetWS.x, vertexWS.z), vertexWS.z);
+    float3 v1 = float3(vertexWS.x, SampleHeight(vertexWS.x, vertexWS.z + offsetWS.z), vertexWS.z + offsetWS.z);
     
-    float3 normal = normalize(cross(v1 - vertex, v0 - vertex));
+    float3 normal = normalize(mul(_WorldToLocal, float4(cross(v1 - vertexWS, v0 - vertexWS), 0)).xyz);
     _VertexBuffer.Store3(id.x * _VertexStride + _NormalOffset, asuint(normal));
 }
 
@@ -81,7 +82,7 @@ void CalculateNormals(uint3 id : SV_DispatchThreadID) {
     float3 v2 = asfloat(_VertexBuffer.Load3(v_id.z * _VertexStride + _PositionOffset));
 
     // Calculate the normal (100 * normal to increase the precision)
-    float3 normal = -cross(normalize(v1 - v0), normalize(v2 - v0));
+    float3 normal = cross(normalize(v1 - v0), normalize(v2 - v0));
 
     // Update the normals (normalized normals)
     // _VertexBuffer.Store3(v_id.x * _VertexStride + _NormalOffset, asuint(normal + asfloat(_VertexBuffer.Load3(v_id.x * _VertexStride + _NormalOffset))));
