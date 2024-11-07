@@ -44,6 +44,8 @@ public class ProceduralGrassRenderer : MonoBehaviour {
     private GraphicsBuffer vertexBuffer;
 
     // Indirect draw buffers for Graphics.DrawProceduralIndirect.
+    private GraphicsBuffer generatedIndexBuffer;
+    private GraphicsBuffer generatedVertexBuffer;
     private ComputeBuffer drawTrianglesBuffer;                                                  // Buffer to store the generated grass triangles.
     private const int DRAW_TRIANGLE_STRIDE = sizeof(float) * (3 + 2) * 3 + sizeof(float) * 3;   // The size of a singular element in the compute buffers.
     private ComputeBuffer drawArgsBuffer;                                                       // Buffer to store the arguments for the draw command.
@@ -109,7 +111,7 @@ public class ProceduralGrassRenderer : MonoBehaviour {
         instantiatedMaterial = Instantiate(material);
 
         // Set the grass rendering method.
-        if (m_grassSettings.grassRenderingMethod == GrassRenderingMethod.Procedural) {
+        if (m_grassSettings.grassRenderingMethod == GrassRenderingMethod.GPUGenerated) {
             instantiatedGrassComputeShader.DisableKeyword("GPU_INSTANCING");
             instantiatedGrassComputeShader.EnableKeyword("GPU_GENERATION");
             instantiatedMaterial.DisableKeyword("GPU_INSTANCING");
@@ -186,10 +188,21 @@ public class ProceduralGrassRenderer : MonoBehaviour {
         );
 
         // Set up grass rendering method specifics.
-        if (m_grassSettings.grassRenderingMethod == GrassRenderingMethod.Procedural) {
+        if (m_grassSettings.grassRenderingMethod == GrassRenderingMethod.GPUGenerated) {
+
+            // Initialize Generated compute shader buffers.
+            int grassBladeTriangleCount = 2 * m_grassSettings.maxBladeSegments - 1;
+            int grassBladeVertexCount = grassBladeTriangleCount + 2;
+            int maxIndexCount = grassBladeTriangleCount * sourceTriangleCount * m_grassSettings.grassBladesPerTriangle * 3;
+            int maxVertexCount = grassBladeVertexCount * sourceTriangleCount * m_grassSettings.grassBladesPerTriangle;
+            //generatedIndexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Index | GraphicsBuffer.Target.Raw, maxIndexCount, sizeof(int));
+            //generatedVertexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Vertex | GraphicsBuffer.Target.Raw, maxVertexCount, DRAW_TRIANGLE_STRIDE);
+
+            // Set Generated compute shader buffers.
+            //instantiatedGrassComputeShader.SetBuffer(idGrassKernel, "_GeneratedIndexBuffer", generatedIndexBuffer);
+            //instantiatedGrassComputeShader.SetBuffer(idGrassKernel, "_GeneratedVertexBuffer", generatedVertexBuffer);
             
             // Initialize Procedural compute shader buffers.
-            int grassBladeTriangleCount = (2 * m_grassSettings.maxBladeSegments - 1);
             drawTrianglesBuffer = new ComputeBuffer(sourceTriangleCount * grassBladeTriangleCount * m_grassSettings.grassBladesPerTriangle, DRAW_TRIANGLE_STRIDE, ComputeBufferType.Append);
             drawTrianglesBuffer.SetCounterValue(0);
             drawArgsBuffer = new ComputeBuffer(1, sizeof(int) * 4, ComputeBufferType.IndirectArguments);
@@ -205,7 +218,7 @@ public class ProceduralGrassRenderer : MonoBehaviour {
         } else if (m_grassSettings.grassRenderingMethod == GrassRenderingMethod.GPUInstancing) {
             
             // Set the indirect draw indexed args reset data.
-            indirectDrawIndexedArgsReset[0] = mesh.GetIndexCount(0);
+            indirectDrawIndexedArgsReset[0] = m_grassBladeMesh.GetIndexCount(0);
 
             // Initialize GPUInstancing compute shader buffers.
             grassInstancesBuffer = new ComputeBuffer(sourceTriangleCount * m_grassSettings.grassBladesPerTriangle, GRASS_INSTANCE_STRIDE, ComputeBufferType.Append);
@@ -239,6 +252,10 @@ public class ProceduralGrassRenderer : MonoBehaviour {
         grassInstancesBuffer?.Release();
         indirectDrawIndexedArgs?.Release();
 
+        // Release Generated buffers.
+        generatedIndexBuffer?.Release();
+        generatedVertexBuffer?.Release();
+
         // Destroy the instantiated compute shader and material.
         if (Application.isPlaying) {
             Destroy(instantiatedGrassComputeShader);
@@ -267,7 +284,7 @@ public class ProceduralGrassRenderer : MonoBehaviour {
         if (!_isInitialized) { return; }
 
         // Clear the draw and indirect args buffers from the previous frame.
-        if (m_grassSettings.grassRenderingMethod == GrassRenderingMethod.Procedural) {
+        if (m_grassSettings.grassRenderingMethod == GrassRenderingMethod.GPUGenerated) {
             drawTrianglesBuffer.SetCounterValue(0);
             drawArgsBuffer.SetData(drawArgsBufferReset);
         } else if (m_grassSettings.grassRenderingMethod == GrassRenderingMethod.GPUInstancing) {
@@ -294,7 +311,7 @@ public class ProceduralGrassRenderer : MonoBehaviour {
         instantiatedGrassComputeShader.Dispatch(idGrassKernel, dispatchSize.x, dispatchSize.y, dispatchSize.z);
 
         // Draw the grass.
-        if (m_grassSettings.grassRenderingMethod == GrassRenderingMethod.Procedural) {
+        if (m_grassSettings.grassRenderingMethod == GrassRenderingMethod.GPUGenerated) {
             DrawProceduralGrass();
         } else if (m_grassSettings.grassRenderingMethod == GrassRenderingMethod.GPUInstancing) {
             DrawGPUInstancedGrass();
@@ -316,8 +333,8 @@ public class ProceduralGrassRenderer : MonoBehaviour {
             0, 
             null,
             null,
-            ShadowCastingMode.Off, 
-            true,
+            m_grassSettings.shadowCastingMode,
+            m_grassSettings.receiveShadows,
             gameObject.layer
         );
 
@@ -335,6 +352,8 @@ public class ProceduralGrassRenderer : MonoBehaviour {
         Bounds bounds = meshRenderer.bounds;
         bounds.Expand(Mathf.Max(m_grassSettings.grassHeight + m_grassSettings.grassHeightVariation, m_grassSettings.grassWidth + m_grassSettings.grassWidthVariation) * 2.0f);
         rp.worldBounds = bounds;
+        rp.shadowCastingMode = m_grassSettings.shadowCastingMode;
+        rp.receiveShadows = m_grassSettings.receiveShadows;
 
         // Draw GPU Instanced meshes.
         Graphics.RenderMeshIndirect(rp, m_grassBladeMesh, indirectDrawIndexedArgs);

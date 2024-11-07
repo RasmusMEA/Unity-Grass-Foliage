@@ -3,6 +3,7 @@
 #define GRASS_SHADING_HLSL
 
 // Includes
+#include "Grass.hlsl"
 #include "CommonLibrary.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -71,10 +72,14 @@ struct VertexOutput {
         float3 bitangent = cross(instance.normalWS, tangent);
         float3x3 TBN = transpose(float3x3(tangent, bitangent, instance.normalWS));
 
+        // Calculate wind direction in world space and bend matrix in tangent space
+        float3x3 bendMatrix = GetBladeBendMatrix(input.uv.y, 1, instance.bend);
+        float3x3 windMatrix = AngleAxis3x3(1 * instance.windDirection.z, instance.windDirection);
+        float3x3 directionMatrix = AngleAxis3x3(r2 * r2 * 2 * PI, float3(0, 0, 1));
+        
         // Apply local transformations
         float3 vertex = input.position.xyz * float3(instance.width, instance.width, instance.height);
-        vertex = mul(AngleAxis3x3(r1 * 2 * PI, float3(0, 0, 1)), vertex);
-        vertex = mul(TBN, vertex);
+        vertex = mul(windMatrix, mul(TBN, mul(directionMatrix, mul(bendMatrix, vertex))));
 
         // Output combined data
         output.positionWS = instance.positionWS + vertex;
@@ -86,6 +91,24 @@ struct VertexOutput {
     }
 
 #elif GPU_GENERATION
+
+    // // New vertex input data
+    // struct GeneratedVertex {
+    //     half3 position : POSITION;
+    //     half3 normal : NORMAL;
+    //     half2 uv : TEXCOORD0;
+    // }
+
+    // // New grass instance data
+    // struct GrassInstance {
+
+    //     // Grass positionWS, normalWS and tangentWS
+    //     half2 coefficients;     // Barycentric coefficients for the triangle
+    //     uint triangleIndex;     // Index of the triangle from the input mesh
+
+    //     // Grass blade properties
+    //     uint type;              // Index of the grass type
+    // }
 
     // Generated vertex input data
     struct GeneratedVertex {

@@ -25,6 +25,11 @@
     // Procedural Output: Grass Blades and Indirect Draw Arguments
     AppendStructuredBuffer<GeneratedTriangle> _ProceduralTriangles;
     RWStructuredBuffer<IndirectArgs> _IndirectArgsBuffer;
+
+    // Output buffers for the generated geometry
+    RWByteAddressBuffer _GeneratedIndexBuffer;
+    //RWByteAddressBuffer _GeneratedVertexBuffer;
+
 #endif // GPU_GENERATION
 
 // Variables set by the renderer
@@ -45,37 +50,23 @@ void Main(uint3 id : SV_DispatchThreadID) {
     // Get the vertex indices, if the index buffer is 16-bit, the indices are packed and need to be unpacked
     uint3 v_id = GetTriangleIndices(id);
 
-    // Get the vertices
-    float3 v0 = asfloat(_VertexBuffer.Load3(v_id.x * _VertexStride + _PositionOffset));
-    float3 v1 = asfloat(_VertexBuffer.Load3(v_id.y * _VertexStride + _PositionOffset));
-    float3 v2 = asfloat(_VertexBuffer.Load3(v_id.z * _VertexStride + _PositionOffset));
+    // Get the position
+    float3 position = mul(_LocalToWorld, float4(
+        asfloat(_VertexBuffer.Load3(v_id.x * _VertexStride + _PositionOffset)) * randomizedCoefficients.x +
+        asfloat(_VertexBuffer.Load3(v_id.y * _VertexStride + _PositionOffset)) * randomizedCoefficients.y +
+        asfloat(_VertexBuffer.Load3(v_id.z * _VertexStride + _PositionOffset)) * randomizedCoefficients.z,
+        1
+    )).xyz;
 
-    // Get the normals
-    float3 n0 = asfloat(_VertexBuffer.Load3(v_id.x * _VertexStride + _NormalOffset));
-    float3 n1 = asfloat(_VertexBuffer.Load3(v_id.y * _VertexStride + _NormalOffset));
-    float3 n2 = asfloat(_VertexBuffer.Load3(v_id.z * _VertexStride + _NormalOffset));
-
-    // Get the tangents
-    float4 t0 = asfloat(_VertexBuffer.Load4(v_id.x * _VertexStride + _TangentOffset));
-    float4 t1 = asfloat(_VertexBuffer.Load4(v_id.y * _VertexStride + _TangentOffset));
-    float4 t2 = asfloat(_VertexBuffer.Load4(v_id.z * _VertexStride + _TangentOffset));
-
-    // Calculate average position, normal and tangent
-    float3 position = randomizedCoefficients.x * v0 + randomizedCoefficients.y * v1 + randomizedCoefficients.z * v2;
-    float3 normal = normalize(randomizedCoefficients.x * n0 + randomizedCoefficients.y * n1 + randomizedCoefficients.z * n2);
-    float3 tangent = normalize(randomizedCoefficients.x * t0.xyz + randomizedCoefficients.y * t1.xyz + randomizedCoefficients.z * t2.xyz);
-
-    // Translate the position to world space
-    position = mul(_LocalToWorld, float4(position, 1)).xyz;
-    normal = normalize(mul(_LocalToWorld, float4(normal, 0)).xyz);
-    tangent = normalize(mul(_LocalToWorld, float4(tangent, 0)).xyz);
-
-    // Create tangent to world space matrix
-    float3 bitangent = normalize(cross(normal, tangent));
-    float3x3 tangentToWorld = transpose(float3x3(tangent, bitangent, normal));
+    // Get the normal
+    float3 normal = normalize(mul(_LocalToWorld, float4(
+        asfloat(_VertexBuffer.Load3(v_id.x * _VertexStride + _NormalOffset)) * randomizedCoefficients.x +
+        asfloat(_VertexBuffer.Load3(v_id.y * _VertexStride + _NormalOffset)) * randomizedCoefficients.y +
+        asfloat(_VertexBuffer.Load3(v_id.z * _VertexStride + _NormalOffset)) * randomizedCoefficients.z,
+        0
+    )).xyz);
 
     // Create the direction matrix
-    float3x3 directionMatrix = AngleAxis3x3(r2 * r2 * 2 * PI, float3(0, 0, 1));
     float3 windDirectionWS = GetWindDirection(position, normal) * _WindStrength;
 
     // Get the wind UV coordinate
@@ -93,7 +84,7 @@ void Main(uint3 id : SV_DispatchThreadID) {
     if (CullGrassBlade(position, max(height, width), height, normal)) { return; }
     
     // Cull randomly based on the distance, to reduce the number of blades
-    if (r * (1 - height) > 250 / pow(distance(position, _CameraPositionWS), 2)) {
+    if (r * (1 - height) > 25000 / pow(distance(position, _CameraPositionWS), 2)) {
         return;
     } else {
         width *= max(1, 3 - 75 / distance(position, _CameraPositionWS));
@@ -123,9 +114,28 @@ void Main(uint3 id : SV_DispatchThreadID) {
 
     #elif GPU_GENERATION
 
-        // Get the blade segment count
+        // Get the blade segment count, triangle count and vertex count
         uint bladeSegmentCount = GetBladeSegments(position, height);
         uint triangleCount = 2 * bladeSegmentCount - 1;
+        uint indexCount = triangleCount * 3;
+        uint vertexCount = triangleCount + 2;
+
+        // Increase the index count to allocate space for the blade
+        //InterlockedAdd(_IndirectArgsBuffer[0].indexCountPerInstance, indexCount);
+        InterlockedAdd(_IndirectArgsBuffer[0].vertexCountPerInstance, indexCount);
+
+        // Get the tangent
+        float3 tangent = normalize(mul(_LocalToWorld, float4(
+            asfloat(_VertexBuffer.Load3(v_id.x * _VertexStride + _TangentOffset)) * randomizedCoefficients.x +
+            asfloat(_VertexBuffer.Load3(v_id.y * _VertexStride + _TangentOffset)) * randomizedCoefficients.y +
+            asfloat(_VertexBuffer.Load3(v_id.z * _VertexStride + _TangentOffset)) * randomizedCoefficients.z,
+            0
+        ))).xyz;
+
+        // Create tangent to world space matrix and direction matrix
+        float3 bitangent = normalize(cross(normal, tangent));
+        float3x3 tangentToWorld = transpose(float3x3(tangent, bitangent, normal));
+        float3x3 directionMatrix = AngleAxis3x3(r2 * r2 * 2 * PI, float3(0, 0, 1));
 
         // Create the grass blade vertices
         GeneratedVertex vertices[MAX_BLADE_POINTS];
@@ -157,8 +167,6 @@ void Main(uint3 id : SV_DispatchThreadID) {
             tri.vertices[2] = vertices[i + 2];
             _ProceduralTriangles.Append(tri);
         }
-        
-        // Increase the vertex count
-        InterlockedAdd(_IndirectArgsBuffer[0].vertexCountPerInstance, triangleCount * 3);
+
     #endif // GPU_GENERATION
 }
