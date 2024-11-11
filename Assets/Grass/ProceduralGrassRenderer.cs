@@ -24,9 +24,7 @@ public class ProceduralGrassRenderer : MonoBehaviour {
 
     [Header("Grass Settings")]
     [SerializeField] private GrassSettings m_grassSettings;
-
-    [Header("GPU Instancing Settings")]
-    [SerializeField] private Mesh m_grassBladeMesh;
+    [SerializeField] public Space sampleSpace = Space.World;
 
     // Flag to check if the renderer has been initialized.
     private bool _isInitialized = false;
@@ -52,7 +50,7 @@ public class ProceduralGrassRenderer : MonoBehaviour {
 
     // Indirect draw buffers for GPU instancing.
     private ComputeBuffer grassInstancesBuffer;                                                 // Buffer to store the generated grass triangles.
-    private const int GRASS_INSTANCE_STRIDE = sizeof(float) * 14 + sizeof(int) * 1;             // The size of a singular element in the compute buffers.
+    private const int GRASS_INSTANCE_STRIDE = sizeof(float) * 15 + sizeof(int) * 1;             // The size of a singular element in the compute buffers.
     private GraphicsBuffer indirectDrawIndexedArgs;                                             // Buffer to store the arguments for the draw command.  
     
     // The data to reset the drawArgsBuffer with each frame.
@@ -82,28 +80,28 @@ public class ProceduralGrassRenderer : MonoBehaviour {
         }
 
         // Generate grass mesh if no mesh is set.
-        if (m_grassBladeMesh == null || !Application.isPlaying) {
-            m_grassBladeMesh = new Mesh();
-            // m_grassBladeMesh.vertices = new Vector3[] {
+        if (m_grassSettings.grassBladeMesh == null) {
+            m_grassSettings.grassBladeMesh = new Mesh();
+            // m_grassSettings.grassBladeMesh.vertices = new Vector3[] {
             //     new Vector3(-1, 0, 0), new Vector3(1, 0, 0), new Vector3(-1, 0, 1/3f),
             //     new Vector3(1, 0, 1/3f), new Vector3(-1, 0, 2/3f), new Vector3(1, 0, 2/3f),
             //     new Vector3(0, 0, 1)
             // };
-            // m_grassBladeMesh.triangles = new int[] { 
+            // m_grassSettings.grassBladeMesh.triangles = new int[] { 
             //     0, 1, 2,
             //     1, 3, 2,
             //     2, 3, 4,
             //     3, 5, 4,
             //     4, 5, 6
             // };
-            // m_grassBladeMesh.uv = new Vector2[] { 
+            // m_grassSettings.grassBladeMesh.uv = new Vector2[] { 
             //     new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 1/3f),
             //     new Vector2(1, 1/3f), new Vector2(0, 2/3f), new Vector2(1, 2/3f),
             //     new Vector2(0.5f, 1)
             // };
-            m_grassBladeMesh.vertices = new Vector3[] { new Vector3(-1, 0, 0), new Vector3(1, 0, 0), new Vector3(0, 0, 1) };
-            m_grassBladeMesh.triangles = new int[] { 0, 1, 2 };
-            m_grassBladeMesh.uv = new Vector2[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 1) };
+            m_grassSettings.grassBladeMesh.vertices = new Vector3[] { new Vector3(-1, 0, 0), new Vector3(1, 0, 0), new Vector3(0, 0, 1) };
+            m_grassSettings.grassBladeMesh.triangles = new int[] { 0, 1, 2 };
+            m_grassSettings.grassBladeMesh.uv = new Vector2[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 1) };
         }
 
         // Instantiate the compute shader and material.
@@ -121,6 +119,15 @@ public class ProceduralGrassRenderer : MonoBehaviour {
             instantiatedGrassComputeShader.DisableKeyword("GPU_GENERATION");
             instantiatedMaterial.EnableKeyword("GPU_INSTANCING");
             instantiatedMaterial.DisableKeyword("GPU_GENERATION");
+        }
+
+        // Set the grass sampling space.
+        if (sampleSpace == Space.Self) {
+            instantiatedGrassComputeShader.EnableKeyword("OBJECT_SPACE");
+            instantiatedGrassComputeShader.DisableKeyword("WORLD_SPACE");
+        } else if (sampleSpace == Space.World) {
+            instantiatedGrassComputeShader.DisableKeyword("OBJECT_SPACE");
+            instantiatedGrassComputeShader.EnableKeyword("WORLD_SPACE");
         }
 
         // Cache the compute shader kernel.
@@ -218,7 +225,7 @@ public class ProceduralGrassRenderer : MonoBehaviour {
         } else if (m_grassSettings.grassRenderingMethod == GrassRenderingMethod.GPUInstancing) {
             
             // Set the indirect draw indexed args reset data.
-            indirectDrawIndexedArgsReset[0] = m_grassBladeMesh.GetIndexCount(0);
+            indirectDrawIndexedArgsReset[0] = m_grassSettings.grassBladeMesh.GetIndexCount(0);
 
             // Initialize GPUInstancing compute shader buffers.
             grassInstancesBuffer = new ComputeBuffer(sourceTriangleCount * m_grassSettings.grassBladesPerTriangle, GRASS_INSTANCE_STRIDE, ComputeBufferType.Append);
@@ -334,7 +341,7 @@ public class ProceduralGrassRenderer : MonoBehaviour {
             null,
             null,
             m_grassSettings.shadowCastingMode,
-            m_grassSettings.receiveShadows,
+            true,
             gameObject.layer
         );
 
@@ -353,9 +360,8 @@ public class ProceduralGrassRenderer : MonoBehaviour {
         bounds.Expand(Mathf.Max(m_grassSettings.grassHeight + m_grassSettings.grassHeightVariation, m_grassSettings.grassWidth + m_grassSettings.grassWidthVariation) * 2.0f);
         rp.worldBounds = bounds;
         rp.shadowCastingMode = m_grassSettings.shadowCastingMode;
-        rp.receiveShadows = m_grassSettings.receiveShadows;
 
         // Draw GPU Instanced meshes.
-        Graphics.RenderMeshIndirect(rp, m_grassBladeMesh, indirectDrawIndexedArgs);
+        Graphics.RenderMeshIndirect(rp, m_grassSettings.grassBladeMesh, indirectDrawIndexedArgs);
     }
 }

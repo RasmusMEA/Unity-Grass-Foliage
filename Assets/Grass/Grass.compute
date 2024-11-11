@@ -1,6 +1,7 @@
 #pragma kernel Main
 
 #pragma multi_compile GPU_INSTANCING GPU_GENERATION
+#pragma multi_compile OBJECT_SPACE WORLD_SPACE
 
 // Global Includes
 #include "Mesh.hlsl"
@@ -40,21 +41,35 @@ float4x4 _LocalToWorld;
 void Main(uint3 id : SV_DispatchThreadID) {
     if (id.x >= _IndexCount / 3 || id.y >= _GrassBladesPerTriangle) { return; }
 
-    // Random numbers
-    float r = rand(id.x * 269 + id.y * 293);
-    float r2 = rand(id.x * 107 + id.y * 571);
-
-    // Randomized triangle coefficients
-    float3 randomizedCoefficients = UniformRandomBarycentricCoefficients(id.x * 701 + id.y * 109, id.x * 461 + id.y * 1031);
-
     // Get the vertex indices, if the index buffer is 16-bit, the indices are packed and need to be unpacked
     uint3 v_id = GetTriangleIndices(id);
 
+    // Get the vertices of the triangle
+    float3 vertex0 = asfloat(_VertexBuffer.Load3(v_id.x * _VertexStride + _PositionOffset));
+    float3 vertex1 = asfloat(_VertexBuffer.Load3(v_id.y * _VertexStride + _PositionOffset));
+    float3 vertex2 = asfloat(_VertexBuffer.Load3(v_id.z * _VertexStride + _PositionOffset));
+
+    // Get center position in object space for sampling random values
+    #if OBJECT_SPACE
+        float3 hashPosition = (vertex0 + vertex1 + vertex2) / 3;
+
+    // Get center position in world space for sampling random values
+    #elif WORLD_SPACE
+        float3 hashPosition = mul(_LocalToWorld, float4((vertex0 + vertex1 + vertex2) / 3, 1)).xyz;
+    #endif
+
+    // Random numbers
+    float r = rand(rand(hashPosition.x * 373 + hashPosition.y * 421 + hashPosition.z * 643) * 701 + id.y * 109);
+    float r2 = rand(rand(hashPosition.x * 349 + hashPosition.y * 461 + hashPosition.z * 251) * 461 + id.y * 1031);
+
+    // Randomized triangle coefficients
+    float3 randomizedCoefficients = BarycentricCoefficients(r, r2);
+    
     // Get the position
     float3 position = mul(_LocalToWorld, float4(
-        asfloat(_VertexBuffer.Load3(v_id.x * _VertexStride + _PositionOffset)) * randomizedCoefficients.x +
-        asfloat(_VertexBuffer.Load3(v_id.y * _VertexStride + _PositionOffset)) * randomizedCoefficients.y +
-        asfloat(_VertexBuffer.Load3(v_id.z * _VertexStride + _PositionOffset)) * randomizedCoefficients.z,
+        vertex0 * randomizedCoefficients.x +
+        vertex1 * randomizedCoefficients.y +
+        vertex2 * randomizedCoefficients.z,
         1
     )).xyz;
 
@@ -67,7 +82,7 @@ void Main(uint3 id : SV_DispatchThreadID) {
     )).xyz);
 
     // Create the direction matrix
-    float3 windDirectionWS = GetWindDirection(position, normal) * _WindStrength;
+    float3 windDirectionWS = GetWindDirection(position + float3((r * r - 0.5), (r2 * r2 - 0.5), (r2 * r - 0.5)), normal) * _WindStrength;
 
     // Get the wind UV coordinate
     float2 heightUV = (position.xz * _WindPositionScale) * _WindTextureScale;
@@ -75,7 +90,7 @@ void Main(uint3 id : SV_DispatchThreadID) {
 
     // Grass variation
     float height = max(0, _GrassHeight + _GrassHeightVariation * (heightNoise.x + heightNoise.y));
-    float width = _GrassWidth + _GrassWidthVariation * (r  * r2 * 2 - 1);
+    float width = _GrassWidth + _GrassWidthVariation * (r * r2 * 2 - 1);
     float bend = _GrassBend + _GrassBendVariation * (r2 * 2 - 1);
     float slant = _GrassSlant + _GrassSlantVariation * (r * r * 2 - 1);
     float rigidity = _GrassRigidity + _GrassRigidityVariation * (r2 * 2 - 1);
@@ -99,6 +114,7 @@ void Main(uint3 id : SV_DispatchThreadID) {
         grassInstance.facing = 0;
         
         grassInstance.type = 0;
+        grassInstance.hash = r + position.x * 193 + position.y * 131 + position.z * 67;
 
         grassInstance.height = height;
         grassInstance.width = width;

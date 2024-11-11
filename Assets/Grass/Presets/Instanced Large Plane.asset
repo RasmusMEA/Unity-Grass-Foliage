@@ -14,15 +14,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   grassRenderingMethod: 1
   shadowCastingMode: 0
-  receiveShadows: 0
   grassVisuals: 0
   grassBladeMesh: {fileID: 0}
   grassBladeTexture: {fileID: 0}
+  enableLOD: 0
   cameraLODNear: 5
   cameraLODFar: 15
   cameraLODFactor: 1
   maxBladeSegments: 3
-  grassBladesPerTriangle: 90
+  grassBladesPerTriangle: 45
   grassHeight: 0.57
   grassWidth: 0.03
   grassBend: 0
@@ -34,7 +34,7 @@ MonoBehaviour:
   grassSlantVariation: 0
   grassRigidityVariation: 0
   windNoiseTexture: {fileID: 2800000, guid: 5710f55a76a1bca4383e39ffe69dd0eb, type: 3}
-  windStrength: 1.3
+  windStrength: 0.9
   windTimeMultiplier: 0.25
   windTextureScale: 0.17
   windPositionScale: 0.12

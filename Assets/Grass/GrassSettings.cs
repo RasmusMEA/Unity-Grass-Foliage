@@ -9,8 +9,8 @@ public enum GrassRenderingMethod {
 }
 
 public enum GrassVisuals {
-    GrassMesh,
-    GrassBillboard
+    Mesh,
+    Billboard
 }
 
 [CreateAssetMenu(fileName = "GrassSettings", menuName = "Grass/Grass Settings", order = 1)]
@@ -22,19 +22,18 @@ public class GrassSettings : ScriptableObject {
 
     [Header("Rendering Settings")]
     [SerializeField] public ShadowCastingMode shadowCastingMode = ShadowCastingMode.TwoSided;
-    [SerializeField] public bool receiveShadows = true;
 
     // Grass visuals settings.
     [Header("Grass Visual Settings")]
-    [SerializeField] public GrassVisuals grassVisuals = GrassVisuals.GrassMesh;
+    [SerializeField] public GrassVisuals grassVisuals = GrassVisuals.Mesh;
     [SerializeField] public Mesh grassBladeMesh;
     [SerializeField] public Texture2D grassBladeTexture;
 
     [Header("Grass LOD Settings")]
-    //[SerializeField] public bool m_enableLOD = false;
-    [SerializeField] public float cameraLODNear = 0;
-    [SerializeField] public float cameraLODFar = 0;
-    [SerializeField] public float cameraLODFactor = 0;
+    [SerializeField] public bool enableLOD = false;
+    [SerializeField] public float cameraLODNear = 5;
+    [SerializeField] public float cameraLODFar = 15;
+    [SerializeField] public float cameraLODFactor = 1;
 
     [Header("Grass Generation Settings")]
     [SerializeField] [Range(1, 5)] public int maxBladeSegments = 1;

@@ -32,6 +32,8 @@ struct VertexOutput {
 
         // Grass type properties
         int type;
+
+        float hash;
         
         // Grass blade properties
         float height;
@@ -63,10 +65,6 @@ struct VertexOutput {
         uint instanceID = GetIndirectInstanceID(svInstanceID);
         GrassInstance instance = _GrassInstances[instanceID];
 
-        // Calculate random floats [0, 1] from the instance position
-        float r1 = rand(abs(instance.positionWS.x) * 37 + abs(instance.positionWS.y) * 53 + abs(instance.positionWS.z) * 59);
-        float r2 = rand(abs(instance.positionWS.x) * 47 + abs(instance.positionWS.y) * 29 + abs(instance.positionWS.z) * 23);
-
         // Calculate tangent plane from the normal
         float3 tangent = normalize(cross(instance.normalWS, float3(1, 1, 1)));
         float3 bitangent = cross(instance.normalWS, tangent);
@@ -75,7 +73,7 @@ struct VertexOutput {
         // Calculate wind direction in world space and bend matrix in tangent space
         float3x3 bendMatrix = GetBladeBendMatrix(input.uv.y, 1, instance.bend);
         float3x3 windMatrix = AngleAxis3x3(1 * instance.windDirection.z, instance.windDirection);
-        float3x3 directionMatrix = AngleAxis3x3(r2 * r2 * 2 * PI, float3(0, 0, 1));
+        float3x3 directionMatrix = AngleAxis3x3(instance.hash * 2 * PI, float3(0, 0, 1));
         
         // Apply local transformations
         float3 vertex = input.position.xyz * float3(instance.width, instance.width, instance.height);
