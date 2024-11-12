@@ -176,7 +176,7 @@ void Main(uint3 id : SV_DispatchThreadID) {
         // Create tangent to world space matrix and direction matrix
         float3 bitangent = normalize(cross(normal, tangent));
         float3x3 tangentToWorld = transpose(float3x3(tangent, bitangent, normal));
-        float3x3 directionMatrix = AngleAxis3x3(r2 * r2 * 2 * PI, float3(0, 0, 1));
+        float3x3 directionMatrix = AngleAxis3x3(asfloat(asuint(r) ^ asuint(positionHash)) * 2 * PI, float3(0, 0, 1));
 
         // Create the grass blade vertices
         GeneratedVertex vertices[MAX_BLADE_POINTS];
