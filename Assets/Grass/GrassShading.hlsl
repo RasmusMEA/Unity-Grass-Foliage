@@ -32,8 +32,6 @@ struct VertexOutput {
 
         // Grass type properties
         int type;
-
-        float hash;
         
         // Grass blade properties
         float height;
@@ -42,6 +40,8 @@ struct VertexOutput {
 
         // Wind properties, encodes both direction and strength
         float3 windDirection;
+
+        float hash;
     };
 
     // Mesh vertex input data

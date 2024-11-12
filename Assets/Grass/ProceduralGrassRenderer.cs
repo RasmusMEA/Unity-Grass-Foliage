@@ -35,7 +35,7 @@ public class ProceduralGrassRenderer : MonoBehaviour {
 
     // Local instance compute shader variables.
     private int idGrassKernel;
-    private Vector3Int dispatchSize = new Vector3Int(8, 8, 1);
+    private Vector3Int dispatchSize;
 
     // Buffers that store the mesh data.
     private GraphicsBuffer indexBuffer;
@@ -110,23 +110,17 @@ public class ProceduralGrassRenderer : MonoBehaviour {
 
         // Set the grass rendering method.
         if (m_grassSettings.grassRenderingMethod == GrassRenderingMethod.GPUGenerated) {
-            instantiatedGrassComputeShader.DisableKeyword("GPU_INSTANCING");
             instantiatedGrassComputeShader.EnableKeyword("GPU_GENERATION");
-            instantiatedMaterial.DisableKeyword("GPU_INSTANCING");
             instantiatedMaterial.EnableKeyword("GPU_GENERATION");
         } else if (m_grassSettings.grassRenderingMethod == GrassRenderingMethod.GPUInstancing) {
             instantiatedGrassComputeShader.EnableKeyword("GPU_INSTANCING");
-            instantiatedGrassComputeShader.DisableKeyword("GPU_GENERATION");
             instantiatedMaterial.EnableKeyword("GPU_INSTANCING");
-            instantiatedMaterial.DisableKeyword("GPU_GENERATION");
         }
 
         // Set the grass sampling space.
         if (sampleSpace == Space.Self) {
             instantiatedGrassComputeShader.EnableKeyword("OBJECT_SPACE");
-            instantiatedGrassComputeShader.DisableKeyword("WORLD_SPACE");
         } else if (sampleSpace == Space.World) {
-            instantiatedGrassComputeShader.DisableKeyword("OBJECT_SPACE");
             instantiatedGrassComputeShader.EnableKeyword("WORLD_SPACE");
         }
 

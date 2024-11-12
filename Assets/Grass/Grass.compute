@@ -56,14 +56,39 @@ void Main(uint3 id : SV_DispatchThreadID) {
     // Get center position in world space for sampling random values
     #elif WORLD_SPACE
         float3 hashPosition = mul(_LocalToWorld, float4((vertex0 + vertex1 + vertex2) / 3, 1)).xyz;
+
+        float3 v0WS = mul(_LocalToWorld, float4(vertex0, 1)).xyz;
+        float3 v1WS = mul(_LocalToWorld, float4(vertex1, 1)).xyz;
+        float3 v2WS = mul(_LocalToWorld, float4(vertex2, 1)).xyz;
+
+        float v0Hash = v0WS.x * 5 + v0WS.y + v0WS.z * 11;
+        float v1Hash = v1WS.x * 5 + v1WS.y + v1WS.z * 11;
+        float v2Hash = v2WS.x * 5 + v2WS.y + v2WS.z * 11;
+
+        int3 order = int3(0, 1, 2);
+
+        if (v1Hash < v0Hash) { int temp = order.x; float temp2 = v0Hash; order.x = order.y; v0Hash = v1Hash; order.y = temp; v1Hash = temp2; }
+        if (v2Hash < v0Hash) { int temp = order.x; float temp2 = v0Hash; order.x = order.z; v0Hash = v2Hash; order.z = temp; v2Hash = temp2; }
+        if (v2Hash < v1Hash) { int temp = order.y; float temp2 = v1Hash; order.y = order.z; v1Hash = v2Hash; order.z = temp; v2Hash = temp2; }
     #endif
 
+    hashPosition = float3(floor(hashPosition.x * 100) / 100, floor(hashPosition.y * 100) / 100, floor(hashPosition.z * 100) / 100);
+
     // Random numbers
-    float r = rand(rand(hashPosition.x * 373 + hashPosition.y * 421 + hashPosition.z * 643) * 701 + id.y * 109);
-    float r2 = rand(rand(hashPosition.x * 349 + hashPosition.y * 461 + hashPosition.z * 251) * 461 + id.y * 1031);
+    uint positionHash = asuint(rand(hashPosition.x * 6047 + hashPosition.y * 4871 + hashPosition.z * 5237)) ^ asuint(hashPosition.x * 6047 + hashPosition.y * 4871 + hashPosition.z * 5237);
+    float r = rand(positionHash * 701 ^ id.y * 109);
+    float r2 = rand(positionHash * 461 ^ id.y * 1031);
 
     // Randomized triangle coefficients
     float3 randomizedCoefficients = BarycentricCoefficients(r, r2);
+
+    #if WORLD_SPACE
+        randomizedCoefficients = float3(
+            randomizedCoefficients[order.x],
+            randomizedCoefficients[order.y],
+            randomizedCoefficients[order.z]
+        );
+    #endif
     
     // Get the position
     float3 position = mul(_LocalToWorld, float4(
@@ -114,7 +139,7 @@ void Main(uint3 id : SV_DispatchThreadID) {
         grassInstance.facing = 0;
         
         grassInstance.type = 0;
-        grassInstance.hash = r + position.x * 193 + position.y * 131 + position.z * 67;
+        grassInstance.hash = asfloat(asuint(r) ^ asuint(positionHash));
 
         grassInstance.height = height;
         grassInstance.width = width;
