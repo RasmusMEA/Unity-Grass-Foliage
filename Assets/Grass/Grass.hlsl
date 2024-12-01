@@ -15,6 +15,11 @@
 // Define the maximum number of blade points based on maximum blade segments.
 #define MAX_BLADE_POINTS (2 * MAX_BLADE_SEGMENTS + 1)
 
+// Grass Visuals
+Texture2D _GrassTexture;
+float4 _GrassTexture_ST;
+SamplerState sampler_GrassTexture;
+
 // Grass settings
 uint _MaxBladeSegments;
 uint _GrassBladesPerTriangle;

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 861f0833e39c4944e943ebbb4ed3ad94
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - HiZOcclusionShader: {fileID: 7200000, guid: dd4b8f42ad87b1541bfc769fe172952e,
+      type: 3}
+  - HiZOcclusionTexture: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

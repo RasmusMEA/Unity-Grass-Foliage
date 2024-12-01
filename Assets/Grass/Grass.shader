@@ -6,6 +6,10 @@ Shader "Grass/Grass"
         [Space]
         _TopColor ("Top Color", Color) = (1,1,1,1)
         _BottomColor ("Bottom Color", Color) = (1,1,1,1)
+
+        [Header(Grass Visuals)]
+        [Space]
+        _GrassTexture ("Grass Texture", 2D) = "white" {}
     }
 
     SubShader

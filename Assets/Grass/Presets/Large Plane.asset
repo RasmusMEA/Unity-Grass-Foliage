@@ -14,10 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   grassRenderingMethod: 0
   shadowCastingMode: 2
-  receiveShadows: 1
   grassVisuals: 0
   grassBladeMesh: {fileID: 0}
   grassBladeTexture: {fileID: 0}
+  enableLOD: 0
   cameraLODNear: 5
   cameraLODFar: 15
   cameraLODFactor: 1

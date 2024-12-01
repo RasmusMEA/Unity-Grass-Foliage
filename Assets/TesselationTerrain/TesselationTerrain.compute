@@ -1,0 +1,50 @@
+#pragma kernel Init
+
+// CBT
+#pragma kernel SumReduction
+
+// LEB
+#pragma kernel Split
+#pragma kernel Merge
+#pragma kernel GenerateMesh
+
+GLSLPROGRAM
+
+// Defines needed for CBT
+#define CBT_HEAP_BUFFER_BINDING
+
+// Include CBT
+#include "libcbt/glsl/cbt.glsl"
+#include "libcbt/glsl/cbt_Dispatcher.glsl"
+#include "libcbt/glsl/cbt_SumReduction.glsl"
+#include "libcbt/glsl/cbt_SumReductionPrepass.glsl"
+
+// Include LEB
+#include "libleb/glsl/leb.glsl"
+
+// CBT Tree
+int maxDepth;
+cbt_Tree cbt;
+
+[numthreads(64,1,1)]
+void Init(uint3 id : SV_DispatchThreadID) {
+    cbt_Tree *cbt = cbt_Create(maxDepth);
+}
+
+[numthreads(64,1,1)]
+void SumReduction(uint3 id : SV_DispatchThreadID) {
+}
+
+[numthreads(64,1,1)]
+void Split(uint3 id : SV_DispatchThreadID) {
+}
+
+[numthreads(64,1,1)]
+void Merge(uint3 id : SV_DispatchThreadID) {
+}
+
+[numthreads(64,1,1)]
+void GenerateMesh(uint3 id : SV_DispatchThreadID) {
+}
+
+ENDGLSL 

@@ -1,0 +1,52 @@
+#pragma kernel Split
+#pragma kernel Merge
+#pragma kernel UpdateMesh
+
+// Rewritten code from: https://github.com/jdupuy/LongestEdgeBisection2D/blob/master/terrain/shaders/TerrainUpdateCS.glsl
+
+#define CBT_FLAG_WRITE
+
+#include "LongestEdgeBisection.hlsl"
+#include "TerrainRenderCommon.hlsl"
+
+[numthreads(64,1,1)]
+void Split(uint3 id : SV_DispatchThreadID) {
+    if (id.x >= cbt_NodeCount()) { return; }
+
+    // Decode the node and extract the triangle vertices
+    cbt_Node node = cbt_DecodeNode(id.x);
+    float4 triangleVertices[3] = DecodeTriangleVertices(node);
+
+    // Compute the target LOD for the triangle
+    float2 targetLOD = LevelOfDetail(triangleVertices);
+
+    // Split the triangle if necessary
+    if (targetLOD.x > 1.0) {
+        leb_SplitNode(node);
+    }
+}
+
+[numthreads(64,1,1)]
+void Merge(uint3 id : SV_DispatchThreadID) {
+    if (id.x >= cbt_NodeCount()) { return; }
+
+    // Decode the node and extract the LEB diamond
+    cbt_Node node = cbt_DecodeNode(id.x);
+    leb_DiamondParent diamond = leb_DecodeDiamondParent(node);
+
+    // Compute the target LOD for the diamond
+    bool shouldMergeBase = LevelOfDetail(DecodeTriangleVertices(diamond.base)).x < 1.0;
+    bool shouldMergeTop = LevelOfDetail(DecodeTriangleVertices(diamond.top)).x < 1.0;
+
+    // Merge only if both triangles should merge
+    if (shouldMergeBase && shouldMergeTop) {
+        leb_MergeNode(node, diamond);
+    }
+}
+
+[numthreads(64,1,1)]
+void UpdateMesh(uint3 id : SV_DispatchThreadID) {
+    if (id.x >= cbt_NodeCount()) { return; }
+
+
+}

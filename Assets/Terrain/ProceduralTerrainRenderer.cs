@@ -24,10 +24,10 @@ public class ProceduralTerrainRenderer : MonoBehaviour {
     public GraphicsBuffer vertexBuffer;
 
     // Local instance compute shader variables.
-    private bool _isInitialized = false;
-    private int idVertexDisplacementKernel = 0;         // The kernel to use to displace the vertices.
-    private int idNormalsKernel = 0;                    // The kernel to use to calculate the normals.
-    private int idNormalizeNormalsKernel = 0;           // The kernel to use to normalize the normals.
+    private bool isInitialized = false;
+    private int idVertexDisplacementKernel = 0;         // The kernel used to displace the vertices.
+    private int idNormalsKernel = 0;                    // The kernel used to calculate the normals.
+    private int idNormalizeNormalsKernel = 0;           // The kernel used to normalize the normals.
     private Vector3Int vertexDisplacementDispatchSize = new Vector3Int(64, 1, 1);
     private Vector3Int calculateNormalsDispatchSize = new Vector3Int(64, 1, 1);
     private Vector3Int normalizeNormalsDispatchSize = new Vector3Int(64, 1, 1);
@@ -47,7 +47,7 @@ public class ProceduralTerrainRenderer : MonoBehaviour {
         meshFilter.mesh = modifiedMesh;
         
         // If initialized, call OnDisable to clean up.
-        if (_isInitialized) { OnDisable(); }
+        if (isInitialized) { OnDisable(); }
 
         // Instantiate the compute shader and cache the kernel.
         instantiatedTerrainComputeShader = Instantiate(terrainComputeShader);
@@ -87,7 +87,7 @@ public class ProceduralTerrainRenderer : MonoBehaviour {
         meshFilter.sharedMesh.bounds.Expand(new Vector3(0, 1000, 0));
 
         // Set the initialized flag.
-        _isInitialized = true;
+        isInitialized = true;
     }
 
     void OnDisable() {
@@ -104,7 +104,7 @@ public class ProceduralTerrainRenderer : MonoBehaviour {
         }
 
         // Set the initialized flag.
-        _isInitialized = false;
+        isInitialized = false;
     }
 
     // LateUpdate is called after all Update functions have been called.
@@ -117,8 +117,8 @@ public class ProceduralTerrainRenderer : MonoBehaviour {
         }
 
         // If not initialized, try to initialize the renderer.
-        if (!_isInitialized) { OnEnable(); }
-        if (!_isInitialized) { return; }
+        if (!isInitialized) { OnEnable(); }
+        if (!isInitialized) { return; }
 
         // If the position has changed, update the compute shader.
         if (lastPosition != transform.position) {

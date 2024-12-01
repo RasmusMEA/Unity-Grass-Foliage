@@ -22,7 +22,7 @@ MonoBehaviour:
   cameraLODFar: 15
   cameraLODFactor: 1
   maxBladeSegments: 3
-  grassBladesPerTriangle: 45
+  grassBladesPerTriangle: 35
   grassHeight: 0.57
   grassWidth: 0.03
   grassBend: 0

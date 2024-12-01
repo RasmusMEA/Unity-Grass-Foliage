@@ -82,7 +82,7 @@ struct VertexOutput {
         // Output combined data
         output.positionWS = instance.positionWS + vertex;
         output.normalWS = instance.normalWS;
-        output.uv = input.uv;
+        output.uv = TRANSFORM_TEX(input.uv, _GrassTexture);
         output.positionCS = TransformWorldToHClip(output.positionWS);
 
         return output;
@@ -163,6 +163,8 @@ half4 frag(VertexOutput input, uint svInstanceID : SV_InstanceID) : SV_Target {
 
     // Sample the texture
     half3 color = lerp(_BottomColor.xyz, _TopColor.xyz, input.uv.y);
+    // half4 texColor = _GrassTexture.Sample(sampler_GrassTexture, input.uv);
+    // clip(texColor.a - 0.5);
 
     // Gather data for lighting
     InputData lightingData = (InputData)0;

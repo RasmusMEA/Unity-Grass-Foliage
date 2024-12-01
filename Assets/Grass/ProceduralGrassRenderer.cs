@@ -82,26 +82,31 @@ public class ProceduralGrassRenderer : MonoBehaviour {
         // Generate grass mesh if no mesh is set.
         if (m_grassSettings.grassBladeMesh == null) {
             m_grassSettings.grassBladeMesh = new Mesh();
-            // m_grassSettings.grassBladeMesh.vertices = new Vector3[] {
-            //     new Vector3(-1, 0, 0), new Vector3(1, 0, 0), new Vector3(-1, 0, 1/3f),
-            //     new Vector3(1, 0, 1/3f), new Vector3(-1, 0, 2/3f), new Vector3(1, 0, 2/3f),
-            //     new Vector3(0, 0, 1)
-            // };
-            // m_grassSettings.grassBladeMesh.triangles = new int[] { 
-            //     0, 1, 2,
-            //     1, 3, 2,
-            //     2, 3, 4,
-            //     3, 5, 4,
-            //     4, 5, 6
-            // };
-            // m_grassSettings.grassBladeMesh.uv = new Vector2[] { 
-            //     new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 1/3f),
-            //     new Vector2(1, 1/3f), new Vector2(0, 2/3f), new Vector2(1, 2/3f),
-            //     new Vector2(0.5f, 1)
-            // };
-            m_grassSettings.grassBladeMesh.vertices = new Vector3[] { new Vector3(-1, 0, 0), new Vector3(1, 0, 0), new Vector3(0, 0, 1) };
-            m_grassSettings.grassBladeMesh.triangles = new int[] { 0, 1, 2 };
-            m_grassSettings.grassBladeMesh.uv = new Vector2[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 1) };
+            m_grassSettings.grassBladeMesh.vertices = new Vector3[] {
+                new Vector3(-1, 0, 0), new Vector3(1, 0, 0), new Vector3(-1, 0, 1/3f),
+                new Vector3(1, 0, 1/3f), new Vector3(-1, 0, 2/3f), new Vector3(1, 0, 2/3f),
+                new Vector3(0, 0, 1)
+            };
+            m_grassSettings.grassBladeMesh.triangles = new int[] { 
+                0, 1, 2,
+                1, 3, 2,
+                2, 3, 4,
+                3, 5, 4,
+                4, 5, 6
+            };
+            m_grassSettings.grassBladeMesh.uv = new Vector2[] { 
+                new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 1/3f),
+                new Vector2(1, 1/3f), new Vector2(0, 2/3f), new Vector2(1, 2/3f),
+                new Vector2(0.5f, 1)
+            };
+
+            // m_grassSettings.grassBladeMesh.vertices = new Vector3[] { new Vector3(-1, 0, 0), new Vector3(1, 0, 0), new Vector3(0, 0, 1) };
+            // m_grassSettings.grassBladeMesh.triangles = new int[] { 0, 1, 2 };
+            // m_grassSettings.grassBladeMesh.uv = new Vector2[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 1) };
+
+            // m_grassSettings.grassBladeMesh.vertices = new Vector3[] { new Vector3(0.5f, 0, 0), new Vector3(0.5f, 0, 1), new Vector3(-0.5f, 0, 1), new Vector3(-0.5f, 0, 0) };
+            // m_grassSettings.grassBladeMesh.triangles = new int[] { 0, 1, 2, 0, 2, 3 };
+            // m_grassSettings.grassBladeMesh.uv = new Vector2[] { new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1), new Vector2(0, 0) };
         }
 
         // Instantiate the compute shader and material.
