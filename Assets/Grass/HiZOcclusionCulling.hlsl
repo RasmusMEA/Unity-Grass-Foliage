@@ -30,7 +30,7 @@ int2 GetTexelCoords(float2 uv, int mipLevel) {
 
 // Get the mip level of the Hi-Z buffer
 int GetMipLevel(float size) {
-    return (int)log2(size);
+    return max(0, (int)log2(size));
 }
 
 // Checks if a sphere is occluded by the Hi-Z buffer
@@ -45,8 +45,11 @@ bool IsOccluded(float3 positionWS, float radius) {
     // Remap the screen space position to [0, 1]
     positionCS.xy = clamp(positionCS.xy, -1, 1) * 0.5 + 0.5;
 
+    // Calculate the projected radius of the sphere in screen space
+    float radiusCS = radius / positionCS.w;
+
     // Calculate the mip level of the Hi-Z buffer
-    int mipLevel = GetMipLevel(1);
+    int mipLevel = GetMipLevel(radiusCS * _ScreenParams.y);
 
     // Calculate the texel coordinates and offset of the Hi-Z buffer
     int2 texelCoords = GetTexelCoords(positionCS.xy, mipLevel);
@@ -58,7 +61,7 @@ bool IsOccluded(float3 positionWS, float radius) {
     texels.y = _HiZBuffer[texelCoords + mipOffset + int2(1, 0)];
     texels.z = _HiZBuffer[texelCoords + mipOffset + int2(0, 1)];
     texels.w = _HiZBuffer[texelCoords + mipOffset + int2(1, 1)];
-    float HiZDepth = max(max(texels.x, texels.y), max(texels.z, texels.w));
+    float HiZDepth = min(min(texels.x, texels.y), min(texels.z, texels.w));
 
     // Check if depth to the sphere is less than the Hi-Z depth
     return (1 - positionCS.z) < HiZDepth;

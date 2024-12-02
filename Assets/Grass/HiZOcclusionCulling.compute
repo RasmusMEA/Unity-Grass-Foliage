@@ -47,6 +47,6 @@ void GenerateHiZMipMap(uint3 id : SV_DispatchThreadID) {
     texels.z = _HiZBuffer[prevMipTexelPos + prevMipOffset + int2(0, 1)].r;
     texels.w = _HiZBuffer[prevMipTexelPos + prevMipOffset + int2(1, 1)].r;
 
-    // Store the maximum depth value in the current MipMap level
-    _HiZBuffer[texelPos + mipOffset] = max(max(texels.x, texels.y), max(texels.z, texels.w));
+    // Store the minimum depth value in the current MipMap level
+    _HiZBuffer[texelPos + mipOffset] = min(min(texels.x, texels.y), min(texels.z, texels.w));
 }
