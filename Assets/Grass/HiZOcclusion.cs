@@ -32,7 +32,7 @@ public class HiZOcclusion : MonoBehaviour {
         dispatchSize = new Vector3Int((int)x, (int)y, (int)z);
 
         // Create Render Texture for HiZ Occlusion
-        HiZOcclusionTexture = new RenderTexture(Screen.width, Mathf.CeilToInt(Screen.height * 1.5f), 0, RenderTextureFormat.R8);
+        HiZOcclusionTexture = new RenderTexture(Screen.width, Mathf.CeilToInt(Screen.height * 1.5f), 0, RenderTextureFormat.RFloat);
         HiZOcclusionTexture.enableRandomWrite = true;
         HiZOcclusionTexture.Create();
 
@@ -53,7 +53,7 @@ public class HiZOcclusion : MonoBehaviour {
         // Check if HiZ Texture size matches with Screen size, otherwise recreate it
         if (HiZOcclusionTexture.width != Screen.width || HiZOcclusionTexture.height != Mathf.CeilToInt(Screen.height * 1.5f)) {
             Shader.SetGlobalVector("_Dimensions", new Vector4(Camera.main.pixelWidth, Camera.main.pixelHeight, 0, 0));
-            
+
             HiZOcclusionTexture.Release();
             HiZOcclusionTexture.width = Screen.width;
             HiZOcclusionTexture.height = Mathf.CeilToInt(Screen.height * 1.5f);
