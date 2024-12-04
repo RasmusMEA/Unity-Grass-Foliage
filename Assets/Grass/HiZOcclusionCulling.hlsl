@@ -68,7 +68,15 @@ bool OcclusionCull(float3 positionWS, float radius) {
     float HiZDepth = min(min(texels.x, texels.y), min(texels.z, texels.w));
 
     // Check if depth to the sphere is less than the Hi-Z depth
-    return (1 - positionCS.z) < HiZDepth;
+    // The 1.1 exponent is used to be more aggressive with culling at distance
+    // TODO: Fix culling of similar depth values at distance
+    return pow(clamp(1 - positionCS.z, 0, 1), 1.1) < HiZDepth;
+}
+
+// Checks if a sphere is of less pixel size than target size
+bool ScreenSizeCull(float3 positionWS, float radius, float pixelSize) {
+    float radiusCS = radius / mul(_viewMatrix, float4(positionWS, 1.0)).w;
+    return radiusCS * 2 * _Dimensions.y < pixelSize;
 }
 
 #endif // HIZOCCLUSIONCULLING_HLSL

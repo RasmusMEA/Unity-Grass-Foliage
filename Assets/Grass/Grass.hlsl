@@ -75,21 +75,25 @@ float3x3 GetBladeBendMatrix(float2 uv, float rigidity, float maxBend) {
 }
 
 // Checks whether to cull the grass blade based on the frustum, occlusion and size-distance LOD
+// Culling order based on expense
 bool CullGrassBlade(float3 position, float radius, float height, float3 normal) {
     bool cull = false;
-
-    // Frustum cull and occlusion cull
-    cull = cull | FrustumCull(position, radius);
-
-    if (cull) return true;
-
-    cull = cull | OcclusionCull(position, radius);
 
     // Parameter culling
     //cull = cull | position.y < 0 || dot(normal, float3(0, 1, 0)) < 0.87;
 
+    // Frustum cull
+    cull = cull | FrustumCull(position, radius);
+
+    if (cull) return true;
+
     // Size-distance LOD culling
-    cull = cull | (height < 2 * distance(position, _CameraPositionWS) * tan(0.5 * _CameraFOV * PI / 180) * 0.001);
+    cull = cull | (height < distance(position, _CameraPositionWS) * tan(0.5 * _CameraFOV * PI / 180) * 0.001);
+
+    if (cull) return true;
+
+    // Hi-Z occlusion cull
+    cull = cull | OcclusionCull(position, radius);
 
     return cull;
 }

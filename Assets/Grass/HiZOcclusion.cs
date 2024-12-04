@@ -90,8 +90,6 @@ public class HiZOcclusion : MonoBehaviour {
             // Draw texture on screen
             GUI.DrawTexture(new Rect(0, 0, Camera.main.pixelWidth, Camera.main.pixelHeight), tex);
         }
-
-        Debug.Log("Screen.width: " + Screen.width + " Screen.height: " + Screen.height);
     }
 
     // Get the mip level of the Hi-Z buffer
