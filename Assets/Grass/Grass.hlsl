@@ -8,6 +8,7 @@
 // Custom includes
 #include "Rendering.hlsl"
 #include "CommonLibrary.hlsl"
+#include "HiZOcclusionCulling.hlsl"
 
 // Define the maximum number of blade segments that can be generated
 #define MAX_BLADE_SEGMENTS 5
@@ -79,6 +80,10 @@ bool CullGrassBlade(float3 position, float radius, float height, float3 normal) 
 
     // Frustum cull and occlusion cull
     cull = cull | FrustumCull(position, radius);
+
+    if (cull) return true;
+
+    cull = cull | OcclusionCull(position, radius);
 
     // Parameter culling
     //cull = cull | position.y < 0 || dot(normal, float3(0, 1, 0)) < 0.87;

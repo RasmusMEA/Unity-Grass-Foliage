@@ -7,7 +7,6 @@
 #include "Mesh.hlsl"
 #include "Grass.hlsl"
 #include "GrassShading.hlsl"
-#include "HiZOcclusionCulling.hlsl"
 
 #if GPU_INSTANCING
 
@@ -127,12 +126,10 @@ void Main(uint3 id : SV_DispatchThreadID) {
     // Cull randomly based on the distance, to reduce the number of blades
     if (r * (1 - height) > 25000 / pow(distance(position, _CameraPositionWS), 2)) {
         return;
-    } else {
-        width *= max(1, 3 - 75 / distance(position, _CameraPositionWS));
     }
 
-    // Check occlusion culling
-    if (IsOccluded(position, max(height, width))) { return; }
+    // Widen the grass blade based on the distance
+    width *= max(1, 3 - 75 / distance(position, _CameraPositionWS));
 
     #if GPU_INSTANCING
 

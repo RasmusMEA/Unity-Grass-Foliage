@@ -22,7 +22,7 @@ public class RoundedPosition : MonoBehaviour {
         // Round the position to the nearest step size.
         transform.position = new Vector3(
             Mathf.Round(targetPosition.position.x / stepSize) * stepSize,
-            0,
+            transform.position.y,
             Mathf.Round(targetPosition.position.z / stepSize) * stepSize
         );
     }
