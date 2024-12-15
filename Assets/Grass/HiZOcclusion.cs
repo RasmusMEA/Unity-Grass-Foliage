@@ -34,7 +34,9 @@ public class HiZOcclusion : MonoBehaviour {
         // Create Render Texture for HiZ Occlusion
         HiZOcclusionTexture = new RenderTexture(Screen.width, Mathf.CeilToInt(Screen.height * 1.5f), 0, RenderTextureFormat.RFloat);
         HiZOcclusionTexture.enableRandomWrite = true;
-        HiZOcclusionTexture.Create();
+
+        // Check if Screen size is valid (0, 0) and create HiZ Occlusion Texture
+        if (Screen.width != 0 && Screen.height != 0) { HiZOcclusionTexture.Create(); }
 
         // Set HiZ Occlusion Texture to Shader
         Shader.SetGlobalVector("_Dimensions", new Vector4(Camera.main.pixelWidth, Camera.main.pixelHeight, 0, 0));
