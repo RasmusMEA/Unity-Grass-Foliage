@@ -4,7 +4,6 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 public enum GrassRenderingMethod {
-    GPUGenerated,
     GPUInstancing
 }
 
@@ -18,7 +17,7 @@ public class GrassSettings : ScriptableObject {
     
     // Grass generation settings.
     [Header("Grass Rendering Method")]
-    [SerializeField] public GrassRenderingMethod grassRenderingMethod = GrassRenderingMethod.GPUGenerated;
+    [SerializeField] public GrassRenderingMethod grassRenderingMethod = GrassRenderingMethod.GPUInstancing;
 
     [Header("Rendering Settings")]
     [SerializeField] public ShadowCastingMode shadowCastingMode = ShadowCastingMode.TwoSided;

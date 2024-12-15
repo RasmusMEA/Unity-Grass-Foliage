@@ -1,6 +1,5 @@
 #pragma kernel Main
 
-#pragma multi_compile GPU_INSTANCING GPU_GENERATION
 #pragma multi_compile OBJECT_SPACE WORLD_SPACE
 
 // Global Includes
@@ -8,30 +7,9 @@
 #include "Grass.hlsl"
 #include "GrassShading.hlsl"
 
-#if GPU_INSTANCING
-
-    // Instanced Output: Grass Blades and Indirect Draw Arguments
-    AppendStructuredBuffer<GrassInstance> _ProceduralGrassInstances;
-    RWStructuredBuffer<IndirectDrawIndexedArgs> _IndirectDrawIndexedArgs;
-
-#elif GPU_GENERATION
-
-    struct IndirectArgs {
-        uint vertexCountPerInstance;
-        uint instanceCount;
-        uint startVertexIndex;
-        uint startInstanceIndex;
-    };
-
-    // Procedural Output: Grass Blades and Indirect Draw Arguments
-    AppendStructuredBuffer<GeneratedTriangle> _ProceduralTriangles;
-    RWStructuredBuffer<IndirectArgs> _IndirectArgsBuffer;
-
-    // Output buffers for the generated geometry
-    RWByteAddressBuffer _GeneratedIndexBuffer;
-    //RWByteAddressBuffer _GeneratedVertexBuffer;
-
-#endif // GPU_GENERATION
+// Instanced Output: Grass Blades and Indirect Draw Arguments
+AppendStructuredBuffer<GrassInstance> _ProceduralGrassInstances;
+RWStructuredBuffer<IndirectDrawIndexedArgs> _IndirectDrawIndexedArgs;
 
 // Variables set by the renderer
 float4x4 _LocalToWorld;
@@ -131,84 +109,24 @@ void Main(uint3 id : SV_DispatchThreadID) {
     // Widen the grass blade based on the distance
     width *= max(1, 3 - 75 / distance(position, _CameraPositionWS));
 
-    #if GPU_INSTANCING
+    // Create the grass blade
+    GrassInstance grassInstance;
+    grassInstance.positionWS = position;
+    grassInstance.normalWS = normal;
+    grassInstance.facing = 0;
+    
+    grassInstance.type = 0;
+    grassInstance.hash = asfloat(asuint(r) ^ asuint(positionHash));
 
-        // Create the grass blade
-        GrassInstance grassInstance;
-        grassInstance.positionWS = position;
-        grassInstance.normalWS = normal;
-        grassInstance.facing = 0;
-        
-        grassInstance.type = 0;
-        grassInstance.hash = asfloat(asuint(r) ^ asuint(positionHash));
+    grassInstance.height = height;
+    grassInstance.width = width;
+    grassInstance.bend = bend;
 
-        grassInstance.height = height;
-        grassInstance.width = width;
-        grassInstance.bend = bend;
+    grassInstance.windDirection = windDirectionWS;
 
-        grassInstance.windDirection = windDirectionWS;
+    // Add the grass blade to the buffer
+    _ProceduralGrassInstances.Append(grassInstance);
 
-        // Add the grass blade to the buffer
-        _ProceduralGrassInstances.Append(grassInstance);
-
-        // Increase the instance count
-        InterlockedAdd(_IndirectDrawIndexedArgs[0].instanceCount, 1);
-
-    #elif GPU_GENERATION
-
-        // Get the blade segment count, triangle count and vertex count
-        uint bladeSegmentCount = GetBladeSegments(position, height);
-        uint triangleCount = 2 * bladeSegmentCount - 1;
-        uint indexCount = triangleCount * 3;
-        uint vertexCount = triangleCount + 2;
-
-        // Increase the index count to allocate space for the blade
-        //InterlockedAdd(_IndirectArgsBuffer[0].indexCountPerInstance, indexCount);
-        InterlockedAdd(_IndirectArgsBuffer[0].vertexCountPerInstance, indexCount);
-
-        // Get the tangent
-        float3 tangent = normalize(mul(_LocalToWorld, float4(
-            asfloat(_VertexBuffer.Load3(v_id.x * _VertexStride + _TangentOffset)) * randomizedCoefficients.x +
-            asfloat(_VertexBuffer.Load3(v_id.y * _VertexStride + _TangentOffset)) * randomizedCoefficients.y +
-            asfloat(_VertexBuffer.Load3(v_id.z * _VertexStride + _TangentOffset)) * randomizedCoefficients.z,
-            0
-        ))).xyz;
-
-        // Create tangent to world space matrix and direction matrix
-        float3 bitangent = normalize(cross(normal, tangent));
-        float3x3 tangentToWorld = transpose(float3x3(tangent, bitangent, normal));
-        float3x3 directionMatrix = AngleAxis3x3(asfloat(asuint(r) ^ asuint(positionHash)) * 2 * PI, float3(0, 0, 1));
-
-        // Create the grass blade vertices
-        GeneratedVertex vertices[MAX_BLADE_POINTS];
-        for (uint i = 0; i < 2 * bladeSegmentCount; i++) {
-            float h = (2*(i/2)) / (float)(2 * bladeSegmentCount);
-
-            // Calculate the offset for the vertex
-            float3 offsetTS = float3(-width + width * (i % 2) * 2, 0, height * h);
-            float3x3 bendMatrix = GetBladeBendMatrix(h, rigidity, bend);
-            float3x3 windMatrixWS = AngleAxis3x3(h * windDirectionWS.z, windDirectionWS);
-
-            // Add the vertex point to the blade
-            vertices[i].positionWS = position + mul(windMatrixWS, mul(tangentToWorld, mul(directionMatrix, mul(bendMatrix, offsetTS))));
-            vertices[i].uv = float2(i % 2, h);
-        }
-
-        // Add the tip
-        float3x3 bendMatrix = GetBladeBendMatrix(1, rigidity, bend);
-        float3x3 windMatrixWS = AngleAxis3x3(1 * windDirectionWS.z, windDirectionWS);
-        vertices[2 * bladeSegmentCount].positionWS = position + mul(windMatrixWS, mul(tangentToWorld, mul(directionMatrix, mul(bendMatrix, float3(0, 0, height)))));
-        vertices[2 * bladeSegmentCount].uv = float2(0.5, 1);
-
-        // Generate the triangles
-        for (i = 0; i < triangleCount; i++) {
-            GeneratedTriangle tri = (GeneratedTriangle)0;
-            tri.normal = normal;
-            tri.vertices[0] = vertices[i];
-            tri.vertices[1] = vertices[i + 1];
-            tri.vertices[2] = vertices[i + 2];
-            _ProceduralTriangles.Append(tri);
-        }
-
-    #endif // GPU_GENERATION
+    // Increase the instance count
+    InterlockedAdd(_IndirectDrawIndexedArgs[0].instanceCount, 1);
 }

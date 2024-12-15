@@ -30,9 +30,6 @@ Shader "Grass/Grass"
             #pragma exclude_renderers d3d11_9x
             #pragma target 5.0
 
-            // Enable GPU Instancing and GPU Generation
-            #pragma multi_compile GPU_INSTANCING GPU_GENERATION
-
             // GPU Instancing
             #pragma multi_compile_instancing
             #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
@@ -71,9 +68,6 @@ Shader "Grass/Grass"
             #pragma exclude_renderers d3d11_9x
             #pragma target 5.0
 
-            // Enable GPU Instancing and GPU Generation
-            #pragma multi_compile GPU_INSTANCING GPU_GENERATION
-
             // GPU Instancing
             #pragma multi_compile_instancing
             #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
@@ -107,9 +101,6 @@ Shader "Grass/Grass"
             #pragma prefer_hlslcc gles
             #pragma exclude_renderers d3d11_9x
             #pragma target 5.0
-
-            // Enable GPU Instancing and GPU Generation
-            #pragma multi_compile GPU_INSTANCING GPU_GENERATION
 
             // GPU Instancing
             #pragma multi_compile_instancing
@@ -148,9 +139,6 @@ Shader "Grass/Grass"
             #pragma prefer_hlslcc gles
             #pragma exclude_renderers d3d11_9x
             #pragma target 5.0
-
-            // Enable GPU Instancing and GPU Generation
-            #pragma multi_compile GPU_INSTANCING GPU_GENERATION
 
             // GPU Instancing
             #pragma multi_compile_instancing
