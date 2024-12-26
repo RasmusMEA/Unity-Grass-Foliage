@@ -1,0 +1,60 @@
+#pragma kernel GenerateTerrainMaps
+#pragma kernel GenerateNormalMap
+#pragma kernel GenerateMoistureMap
+
+// Imports
+#include "TextureMaps.hlsl"
+#include "Assets/Terrain/WorldGenerationNew.hlsl"
+
+[numthreads(8,8,1)]
+void GenerateTerrainMaps(uint3 id : SV_DispatchThreadID) {
+    if ((int)id.x >= _Dimensions.x || (int)id.y >= _Dimensions.y) { return; }
+
+    // Get the current world position
+    float2 uv = float2(id.x / _Dimensions.x, id.y / _Dimensions.y) * 2 - 1;
+    float2 positionWS = uv * _Dimensions * _Scale + _PositionWS.xz;
+    
+    // Calculate the height and water-height
+    float height = SampleHeight(positionWS.x, positionWS.y) / 150 + 0.5;
+    float waterHeight = max(0, 0.5 - height);
+
+    // Store the height and water-height
+    _TerrainMap[id.xy] = float4(height, waterHeight, waterHeight > 0, 1);
+}
+
+[numthreads(8,8,1)]
+void GenerateNormalMap(uint3 id : SV_DispatchThreadID) {
+    if ((int)id.x >= _Dimensions.x || (int)id.y >= _Dimensions.y) { return; }
+
+    // Compare the height of the current pixel with the surrounding pixels
+    float heightL = _TerrainMap[id.xy - int2(1, 0)].x;
+    float heightR = _TerrainMap[id.xy + int2(1, 0)].x;
+    float heightD = _TerrainMap[id.xy - int2(0, 1)].x;
+    float heightU = _TerrainMap[id.xy + int2(0, 1)].x;
+
+    // Calculate the normal, source: https://stackoverflow.com/questions/49640250/calculate-normals-from-heightmap
+    float3 normal = normalize(float3(float2(heightL - heightR, heightD - heightU) / (2 * _Scale) * 150, 1)) * 0.5 + 0.5;
+    _NormalMap[id.xy] = normal;
+}
+
+[numthreads(8,8,1)]
+void GenerateMoistureMap(uint3 id : SV_DispatchThreadID) {
+    if ((int)id.x >= _Dimensions.x || (int)id.y >= _Dimensions.y) { return; }
+
+    // Get the terrain data and blurred terrain data
+    float4 terrain = _TerrainMap[id.xy];
+    float4 blurredTerrain = _BlurredMap[id.xy];
+
+    float height = terrain.x;
+    float waterHeight = terrain.y;
+    bool isWater = terrain.z;
+
+    // Calculate variables for the moisture
+    float relativeHeight = (terrain.x - blurredTerrain.x);
+    float waterSpread = min(1, terrain.z + blurredTerrain.z);
+    float relativeMoisture = saturate(relativeHeight - GetSteepness(id.xy) + 1);
+
+    // Calculate the moisture
+    float moisture = saturate((1 - height) + waterSpread) * relativeMoisture + saturate(relativeHeight + waterSpread + isWater);
+    _TerrainMap[id.xy] = float4(height, waterHeight, isWater, moisture);
+}

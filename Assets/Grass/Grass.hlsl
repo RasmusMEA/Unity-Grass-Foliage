@@ -6,9 +6,9 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
 // Custom includes
-#include "Rendering.hlsl"
-#include "CommonLibrary.hlsl"
-#include "HiZOcclusionCulling.hlsl"
+#include "Assets/ShaderLibrary/Common/Rendering.hlsl"
+#include "Assets/ShaderLibrary/Common/CommonLibrary.hlsl"
+#include "Assets/HiZ-Culling/HiZOcclusionCulling.hlsl"
 
 // Define the maximum number of blade segments that can be generated
 #define MAX_BLADE_SEGMENTS 5

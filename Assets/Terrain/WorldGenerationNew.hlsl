@@ -67,11 +67,10 @@ float3 FBMErosion(float2 p, int octaves) {
     float b = 1;
     float2 d = (float2)0;
 
-    float2 m1 = float2(0.8, -0.6);  
-    float2 m2 = float2(0.6, 0.8);  
+    float2 m1 = float2(0.8, -0.6);
+    float2 m2 = float2(0.6, 0.8);
 
-    for (int i= 0; i < octaves; i++)
-    {
+    for (int i= 0; i < octaves; i++) {
         float3 n = Noised(p);
 
         // Separate noise 2D-gradients
@@ -90,24 +89,6 @@ float3 FBMErosion(float2 p, int octaves) {
     }
 
     return float3(a, d.x, d.y);
-}
-
-// Canyon carving function
-float CanyonCarve(float2 p, float canyonWidth, float canyonBaseWidth, float canyonDepth, float axisOffset, float period, float amplitude, float periodOffset) {
-    
-    // Clamp canyons base width
-    canyonBaseWidth = min(canyonWidth, canyonBaseWidth);
-
-    // Calc x-axis distance from sine wave (not currently sdf)
-    float mod = sin(p.y * 2 * PI / period + periodOffset);
-    mod = min(amplitude, abs(p.y / 50)) * mod; // Damping factor
-
-    float sinSDF = abs(p.x -axisOffset - mod);
-
-    sinSDF = (pow(Smin(canyonWidth, max(0, sinSDF -canyonBaseWidth), 2), 2) / pow(canyonWidth, 2));
-    sinSDF = 1 - sinSDF;
-
-    return sinSDF * canyonDepth;
 }
 
 // World heightmap generation function

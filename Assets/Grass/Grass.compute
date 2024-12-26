@@ -3,9 +3,10 @@
 #pragma multi_compile OBJECT_SPACE WORLD_SPACE
 
 // Global Includes
-#include "Mesh.hlsl"
 #include "Grass.hlsl"
 #include "GrassShading.hlsl"
+#include "Assets/Vegetation/TextureMaps.hlsl"
+#include "Assets/ShaderLibrary/Common/Mesh.hlsl"
 
 // Instanced Output: Grass Blades and Indirect Draw Arguments
 AppendStructuredBuffer<GrassInstance> _ProceduralGrassInstances;
@@ -105,6 +106,13 @@ void Main(uint3 id : SV_DispatchThreadID) {
 
     // Cull the grass blade
     if (CullGrassBlade(position, max(height, width), height, normal)) { return; }
+
+    // Get the terrain data
+    bool isValid;
+    float4 terrainData = SampleTextureWorldPosition(_TerrainMap, position, isValid);
+    if (!isValid || terrainData.x < 0.5) { return; }
+
+    height = terrainData.w * _GrassHeight;
 
     // Widen the grass blade based on the distance
     width *= max(1, 3 - 75 / distance(position, _CameraPositionWS));

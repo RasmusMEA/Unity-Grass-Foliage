@@ -4,7 +4,7 @@
 
 // Includes
 #include "Grass.hlsl"
-#include "CommonLibrary.hlsl"
+#include "Assets/ShaderLibrary/Common/CommonLibrary.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ShaderVariablesFunctions.hlsl"

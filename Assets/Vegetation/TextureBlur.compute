@@ -1,0 +1,44 @@
+#pragma kernel BlurTexture
+
+// Texture to blur and output
+Texture2D<float4> _BlurSource;
+RWTexture2D<float4> _BlurTarget;
+
+// Texture properties
+float _Scale;           // World scale
+float2 _Dimensions;     // Texture dimensions
+
+// Blur variables
+float _DistanceSigma;
+int _BlurRadius;
+bool _HorizontalBlurDirection;
+
+float gaussian(float x, float sigma) {
+    return exp(-(x * x) / (2 * sigma * sigma));
+}
+
+float4 BlurTexture(Texture2D source, int2 texel, int radius, float sigma, bool horizontal = true) {
+    float4 value = 0;
+    float totalWeight = 0;
+    
+    // Gaussian blur in the specified direction
+    for (int i = -radius; i <= radius; i++) {
+        int2 offset = horizontal ? int2(i, 0) : int2(0, i);
+        if (all(clamp(texel + offset, 0, _Dimensions - 1) == texel + offset)) {
+            float weight = gaussian(abs(i * _Scale), sigma);
+            value += weight * source[texel + offset];
+            totalWeight += weight;
+        }
+    }
+
+    // Return the blurred value
+    return value / totalWeight;
+}
+
+[numthreads(8,8,1)]
+void BlurTexture(uint3 id : SV_DispatchThreadID) {
+    if ((int)id.x >= _Dimensions.x || (int)id.y >= _Dimensions.y) { return; }
+
+    // Blur the texture
+    _BlurTarget[id.xy] = BlurTexture(_BlurSource, id.xy, _BlurRadius, _DistanceSigma, _HorizontalBlurDirection);
+}

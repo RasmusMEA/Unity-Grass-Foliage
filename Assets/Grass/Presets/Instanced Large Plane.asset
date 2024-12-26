@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5261aec798abee043b6feb715de3a367, type: 3}
   m_Name: Instanced Large Plane
   m_EditorClassIdentifier: 
-  grassRenderingMethod: 1
+  grassRenderingMethod: 0
   shadowCastingMode: 0
   grassVisuals: 0
   grassBladeMesh: {fileID: 0}

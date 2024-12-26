@@ -1,0 +1,44 @@
+#pragma kernel CopyDepthToHiZMipMap
+#pragma kernel GenerateHiZMipMap
+
+// Includes
+#include "HiZOcclusionCulling.hlsl"
+
+// Current MipMap level to generate
+int _MipLevel;
+
+[numthreads(64,1,1)]
+void CopyDepthToHiZMipMap(uint3 id : SV_DispatchThreadID) {
+    if ((int)id.x >= _CameraDimensions.x * _CameraDimensions.y) { return; }
+
+    int2 texelPos = int2(id.x % _CameraDimensions.x, id.x / _CameraDimensions.x);
+    _HiZBuffer[texelPos] = LOAD_TEXTURE2D_X(_CameraDepthTexture, texelPos).r;
+}
+
+[numthreads(64,1,1)]
+void GenerateHiZMipMap(uint3 id : SV_DispatchThreadID) {
+    uint mipWidth = (uint)_CameraDimensions.x >> _MipLevel;
+    uint mipHeight = (uint)_CameraDimensions.y >> _MipLevel;
+
+    // Check if its the first MipMap level or if the pixel is out of bounds
+    if (_MipLevel == 0 || id.x >= mipWidth * mipHeight) { return; }
+
+    // Get the current texel position
+    int2 texelPos = int2(id.x % mipWidth, id.x / mipWidth);
+    int2 prevMipTexelPos = texelPos << 1;
+
+    // Calculate the mip offsets
+    int2 prevMipOffset = GetMipOffset(_MipLevel - 1);
+    int2 mipOffset = GetMipOffset(_MipLevel);
+    int2 prevMipMaxBounds = (int2(_CameraDimensions.xy) >> (_MipLevel - 1)) - 1;
+
+    // Get the 4 texels from the previous MipMap level to downsample
+    float4 texels;
+    texels.x = _HiZBuffer[prevMipOffset + clamp(prevMipTexelPos + int2(0, 0), 0, prevMipMaxBounds)].r;
+    texels.y = _HiZBuffer[prevMipOffset + clamp(prevMipTexelPos + int2(1, 0), 0, prevMipMaxBounds)].r;
+    texels.z = _HiZBuffer[prevMipOffset + clamp(prevMipTexelPos + int2(0, 1), 0, prevMipMaxBounds)].r;
+    texels.w = _HiZBuffer[prevMipOffset + clamp(prevMipTexelPos + int2(1, 1), 0, prevMipMaxBounds)].r;
+
+    // Store the minimum depth value in the current MipMap level
+    _HiZBuffer[texelPos + mipOffset] = min(min(texels.x, texels.y), min(texels.z, texels.w));
+}
