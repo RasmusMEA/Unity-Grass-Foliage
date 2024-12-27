@@ -19,6 +19,7 @@ RWTexture2D<float> _HiZBuffer;
 
 // Source: https://discussions.unity.com/t/manually-calculating-linear-depth-in-fragment-function/735637/4
 float LinearToDepth(float linearDepth) {
+    if (linearDepth * _ZBufferParams_Custom.z < 0.00001) return 0.0;
     return (1.0 - _ZBufferParams_Custom.w * linearDepth) / (linearDepth * _ZBufferParams_Custom.z);
 }
 
@@ -71,6 +72,7 @@ bool OcclusionCull(float3 positionWS, float radius) {
 
     // Calculate the bounding sphere and radius in screen space, remap to [0, 1]
     float4 positionCS = mul(_viewMatrix, float4(positionWS, 1.0));
+    if (positionCS.w <= 0.00001) return false;
     float radiusCS = radius * 2 / positionCS.w;
     positionCS.xy = clamp(positionCS.xy / positionCS.w, -1, 1) * 0.5 + 0.5;
 
