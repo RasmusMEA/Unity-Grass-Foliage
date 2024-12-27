@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 [ExecuteInEditMode]
-public class TextureGenerator : MonoBehaviour {
+public class TextureMapsGenerator : MonoBehaviour {
 
     // Compute shader.
     [SerializeField] private ComputeShader textureMapComputeShader;
@@ -45,6 +45,12 @@ public class TextureGenerator : MonoBehaviour {
         instantiatedTextureMapComputeShader = Instantiate(textureMapComputeShader);
         instantiatedBlurComputeShader = Instantiate(textureBlurComputeShader);
 
+        // Initialize the kernel IDs.
+        terrainMapKernelID = instantiatedTextureMapComputeShader.FindKernel("GenerateTerrainMaps");
+        normalMapKernelID = instantiatedTextureMapComputeShader.FindKernel("GenerateNormalMap");
+        moistureMapKernelID = instantiatedTextureMapComputeShader.FindKernel("GenerateMoistureMap");
+        blurMapKernelID = instantiatedBlurComputeShader.FindKernel("BlurTexture");
+
         // Initialize the texture maps.
         terrainMap = new RenderTexture(dimensions.x, dimensions.y, 0, RenderTextureFormat.ARGBHalf);
         terrainMap.enableRandomWrite = true;
@@ -63,23 +69,16 @@ public class TextureGenerator : MonoBehaviour {
         blurMap2.Create();
 
         // Set Shader Variables
-        // instantiatedTextureMapComputeShader.SetVector("_PositionWS", transform.position);
-        // instantiatedTextureMapComputeShader.SetVector("_Dimensions", new Vector4(dimensions.x, dimensions.y, 0, 0));
-        // instantiatedTextureMapComputeShader.SetFloat("_Scale", scale);
-
-        Shader.SetGlobalVector("_PositionWS", transform.position);
-        Shader.SetGlobalVector("_Dimensions", new Vector4(dimensions.x, dimensions.y, 0, 0));
-        Shader.SetGlobalFloat("_Scale", scale);
+        instantiatedTextureMapComputeShader.SetVector("_PositionWS", transform.position);
+        instantiatedTextureMapComputeShader.SetVector("_Dimensions", new Vector4(dimensions.x, dimensions.y, 0, 0));
+        instantiatedTextureMapComputeShader.SetFloat("_Scale", scale);
 
         // Set the texture maps.
-        Shader.SetGlobalTexture("_TerrainMap", terrainMap);
-        Shader.SetGlobalTexture("_NormalMap", terrainNormalMap);
-
-        // Initialize the kernel IDs.
-        terrainMapKernelID = instantiatedTextureMapComputeShader.FindKernel("GenerateTerrainMaps");
-        normalMapKernelID = instantiatedTextureMapComputeShader.FindKernel("GenerateNormalMap");
-        moistureMapKernelID = instantiatedTextureMapComputeShader.FindKernel("GenerateMoistureMap");
-        blurMapKernelID = instantiatedBlurComputeShader.FindKernel("BlurTexture");
+        instantiatedTextureMapComputeShader.SetTexture(terrainMapKernelID, "_TerrainMap", terrainMap);
+        instantiatedTextureMapComputeShader.SetTexture(normalMapKernelID, "_TerrainMap", terrainMap);
+        instantiatedTextureMapComputeShader.SetTexture(normalMapKernelID, "_NormalMap", terrainNormalMap);
+        instantiatedTextureMapComputeShader.SetTexture(moistureMapKernelID, "_TerrainMap", terrainMap);
+        instantiatedTextureMapComputeShader.SetTexture(moistureMapKernelID, "_NormalMap", terrainNormalMap);
 
         // Calculate the dispatch size.
         instantiatedTextureMapComputeShader.GetKernelThreadGroupSizes(terrainMapKernelID, out uint threadGroupSizeX, out uint threadGroupSizeY, out _);
@@ -101,7 +100,7 @@ public class TextureGenerator : MonoBehaviour {
         instantiatedBlurComputeShader.SetFloat("_DistanceSigma", distanceSigma);
 
         // Horizontal blur of the terrain map
-        instantiatedBlurComputeShader.SetInt("_HorizontalBlurDirection", 1);
+        instantiatedBlurComputeShader.SetBool("_HorizontalBlurDirection", true);
 
         instantiatedBlurComputeShader.SetTexture(blurMapKernelID, "_BlurSource", terrainMap);
         instantiatedBlurComputeShader.SetTexture(blurMapKernelID, "_BlurTarget", blurMap1);
@@ -109,7 +108,7 @@ public class TextureGenerator : MonoBehaviour {
         instantiatedBlurComputeShader.Dispatch(blurMapKernelID, dispatchSize.x, dispatchSize.y, dispatchSize.z);
 
         // Vertical blur of the terrain map
-        instantiatedBlurComputeShader.SetInt("_HorizontalBlurDirection", 0);
+        instantiatedBlurComputeShader.SetBool("_HorizontalBlurDirection", false);
 
         instantiatedBlurComputeShader.SetTexture(blurMapKernelID, "_BlurSource", blurMap1);
         instantiatedBlurComputeShader.SetTexture(blurMapKernelID, "_BlurTarget", blurMap2);
@@ -117,7 +116,7 @@ public class TextureGenerator : MonoBehaviour {
         instantiatedBlurComputeShader.Dispatch(blurMapKernelID, dispatchSize.x, dispatchSize.y, dispatchSize.z);
 
         // Generate moisture map
-        instantiatedTextureMapComputeShader.SetTexture(moistureMapKernelID, "_BlurredMap", blurMap2);
+        instantiatedTextureMapComputeShader.SetTexture(moistureMapKernelID, "_BlurredMapView", blurMap2);
         instantiatedTextureMapComputeShader.Dispatch(moistureMapKernelID, dispatchSize.x, dispatchSize.y, dispatchSize.z);
     }
 
@@ -143,5 +142,29 @@ public class TextureGenerator : MonoBehaviour {
         GUI.DrawTexture(new Rect(256, 0, 256, 256), terrainNormalMap);
         GUI.DrawTexture(new Rect(0, 256, 256, 256), blurMap1);
         GUI.DrawTexture(new Rect(256, 256, 256, 256), blurMap2);
+    }
+
+    // Enable the shader to access the shader variables.
+    public void SetupShaderVariables(ComputeShader shader, int kernelID) {
+        shader.SetVector("_PositionWS", transform.position);
+        shader.SetVector("_Dimensions", new Vector4(dimensions.x, dimensions.y, 0, 0));
+        shader.SetFloat("_Scale", scale);
+
+        // Set the texture maps.
+        shader.SetTexture(kernelID, "_TerrainMapView", terrainMap);
+        shader.SetTexture(kernelID, "_NormalMapView", terrainNormalMap);
+        shader.SetTexture(kernelID, "_BlurredMapView", blurMap2);
+    }
+
+    // Enable the material to access the shader variables.
+    public void SetupMaterialVariables(Material material) {
+        material.SetVector("_PositionWS", transform.position);
+        material.SetVector("_Dimensions", new Vector4(dimensions.x, dimensions.y, 0, 0));
+        material.SetFloat("_Scale", scale);
+
+        // Set the texture maps.
+        material.SetTexture("_TerrainMapView", terrainMap);
+        material.SetTexture("_NormalMapView", terrainNormalMap);
+        material.SetTexture("_BlurredMapView", blurMap2);
     }
 }

@@ -191,6 +191,14 @@ public class ProceduralGrassRenderer : MonoBehaviour {
         // Set GPUInstancing material properties.
         instantiatedMaterial.SetBuffer("_GrassInstances", grassInstancesBuffer);
 
+        // Get TextureMapsGenerator component, this fails depending on the order of components in the inspector.
+        if (GetComponent<TextureMapsGenerator>() != null) {
+            GetComponent<TextureMapsGenerator>().SetupShaderVariables(instantiatedGrassComputeShader, idGrassKernel);
+            instantiatedGrassComputeShader.EnableKeyword("_USE_TEXTURE_MAPS");
+        } else {
+            instantiatedGrassComputeShader.DisableKeyword("_USE_TEXTURE_MAPS");
+        }
+
         // Set the initialized flag.
         _isInitialized = true;
     }

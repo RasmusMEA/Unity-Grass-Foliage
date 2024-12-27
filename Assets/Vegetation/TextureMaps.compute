@@ -19,7 +19,7 @@ void GenerateTerrainMaps(uint3 id : SV_DispatchThreadID) {
     float waterHeight = max(0, 0.5 - height);
 
     // Store the height and water-height
-    _TerrainMap[id.xy] = float4(height, waterHeight, waterHeight > 0, 1);
+    _TerrainMap[id.xy] = float4(height, waterHeight, 0, 0);
 }
 
 [numthreads(8,8,1)]
@@ -43,18 +43,18 @@ void GenerateMoistureMap(uint3 id : SV_DispatchThreadID) {
 
     // Get the terrain data and blurred terrain data
     float4 terrain = _TerrainMap[id.xy];
-    float4 blurredTerrain = _BlurredMap[id.xy];
+    float4 blurredTerrain = _BlurredMapView[id.xy];
 
     float height = terrain.x;
     float waterHeight = terrain.y;
-    bool isWater = terrain.z;
+    bool isWater = waterHeight > 0;
 
     // Calculate variables for the moisture
     float relativeHeight = (terrain.x - blurredTerrain.x);
     float waterSpread = min(1, terrain.z + blurredTerrain.z);
-    float relativeMoisture = saturate(relativeHeight - GetSteepness(id.xy) + 1);
+    float relativeMoisture = saturate(relativeHeight + _NormalMap[id.xy].z);
 
     // Calculate the moisture
     float moisture = saturate((1 - height) + waterSpread) * relativeMoisture + saturate(relativeHeight + waterSpread + isWater);
-    _TerrainMap[id.xy] = float4(height, waterHeight, isWater, moisture);
+    _TerrainMap[id.xy] = float4(height, waterHeight, relativeHeight, moisture);
 }
