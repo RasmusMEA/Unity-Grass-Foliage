@@ -73,19 +73,13 @@ bool OcclusionCull(float3 positionWS, float radius) {
     // Calculate the bounding sphere and radius in screen space, remap to [0, 1]
     float4 positionCS = mul(_viewMatrix, float4(positionWS, 1.0));
     if (positionCS.w <= 0.00001) return false;
-    float radiusCS = radius * 2 / positionCS.w;
     positionCS.xy = clamp(positionCS.xy / positionCS.w, -1, 1) * 0.5 + 0.5;
 
     // Read the depth values from the Hi-Z buffer
-    float4 texels = GetTexels(positionCS.xy, GetMipLevel(radiusCS * _CameraDimensions.y));
+    float4 texels = GetTexels(positionCS.xy, GetMipLevel(radius * 2 / positionCS.w * _CameraDimensions.y));
     float HiZDepth = min(min(texels.x, texels.y), min(texels.z, texels.w));
 
     // Check if depth to the sphere is less than the Hi-Z depth
-    // The 1.1 exponent is used to be more aggressive with culling at distance
-    // TODO: Fix culling of similar depth values at distance
-    //return pow(clamp(1 - positionCS.z / positionCS.w, 0, 1), 1.1) < HiZDepth;
-
-    // Check if depth to the sphere is less than the Hi-Z depth (currently clipping near plane, to be fixed)
     return LinearToDepth(positionCS.w - radius) < HiZDepth;
 }
 

@@ -270,14 +270,12 @@ public class ProceduralGrassRenderer : MonoBehaviour {
 
         // Set the render parameters.
         RenderParams rp = new RenderParams(instantiatedMaterial);
-        rp.shadowCastingMode = ShadowCastingMode.Off;
-        //rp.receiveShadows = true;
+        rp.shadowCastingMode = m_grassSettings.shadowCastingMode;
 
         // Set the world render bounds, expand the bounds to account for the grass width and height.
         Bounds bounds = meshRenderer.bounds;
         bounds.Expand(Mathf.Max(m_grassSettings.grassHeight + m_grassSettings.grassHeightVariation, m_grassSettings.grassWidth + m_grassSettings.grassWidthVariation) * 2.0f);
         rp.worldBounds = bounds;
-        rp.shadowCastingMode = m_grassSettings.shadowCastingMode;
 
         // Draw GPU Instanced meshes.
         Graphics.RenderMeshIndirect(rp, m_grassSettings.grassBladeMesh, indirectDrawIndexedArgs);

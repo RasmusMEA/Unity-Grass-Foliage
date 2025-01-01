@@ -27,7 +27,8 @@ public class TextureMapsGenerator : MonoBehaviour {
 
     // Texture map references.
     private RenderTexture terrainMap;
-    private RenderTexture terrainNormalMap;
+    private RenderTexture normalMap;
+    private RenderTexture coverageMap;
 
     private RenderTexture blurMap1;
     private RenderTexture blurMap2;
@@ -56,9 +57,13 @@ public class TextureMapsGenerator : MonoBehaviour {
         terrainMap.enableRandomWrite = true;
         terrainMap.Create();
 
-        terrainNormalMap = new RenderTexture(dimensions.x, dimensions.y, 0, RenderTextureFormat.RGB111110Float);
-        terrainNormalMap.enableRandomWrite = true;
-        terrainNormalMap.Create();
+        normalMap = new RenderTexture(dimensions.x, dimensions.y, 0, RenderTextureFormat.RGB111110Float);
+        normalMap.enableRandomWrite = true;
+        normalMap.Create();
+
+        coverageMap = new RenderTexture(dimensions.x, dimensions.y, 0, RenderTextureFormat.ARGB32);
+        coverageMap.enableRandomWrite = true;
+        coverageMap.Create();
 
         blurMap1 = new RenderTexture(dimensions.x, dimensions.y, 0, RenderTextureFormat.ARGBHalf);
         blurMap1.enableRandomWrite = true;
@@ -76,9 +81,9 @@ public class TextureMapsGenerator : MonoBehaviour {
         // Set the texture maps.
         instantiatedTextureMapComputeShader.SetTexture(terrainMapKernelID, "_TerrainMap", terrainMap);
         instantiatedTextureMapComputeShader.SetTexture(normalMapKernelID, "_TerrainMap", terrainMap);
-        instantiatedTextureMapComputeShader.SetTexture(normalMapKernelID, "_NormalMap", terrainNormalMap);
+        instantiatedTextureMapComputeShader.SetTexture(normalMapKernelID, "_NormalMap", normalMap);
         instantiatedTextureMapComputeShader.SetTexture(moistureMapKernelID, "_TerrainMap", terrainMap);
-        instantiatedTextureMapComputeShader.SetTexture(moistureMapKernelID, "_NormalMap", terrainNormalMap);
+        instantiatedTextureMapComputeShader.SetTexture(moistureMapKernelID, "_NormalMap", normalMap);
 
         // Calculate the dispatch size.
         instantiatedTextureMapComputeShader.GetKernelThreadGroupSizes(terrainMapKernelID, out uint threadGroupSizeX, out uint threadGroupSizeY, out _);
@@ -123,10 +128,11 @@ public class TextureMapsGenerator : MonoBehaviour {
     void OnDisable() {
         
         // Release the texture maps.
-        terrainMap.Release();
-        terrainNormalMap.Release();
-        blurMap1.Release();
-        blurMap2.Release();
+        terrainMap?.Release();
+        normalMap?.Release();
+        coverageMap?.Release();
+        blurMap1?.Release();
+        blurMap2?.Release();
     }
 
     // Update is called once per frame
@@ -139,7 +145,7 @@ public class TextureMapsGenerator : MonoBehaviour {
         if (!debug) { return; }
 
         GUI.DrawTexture(new Rect(0, 0, 256, 256), terrainMap);
-        GUI.DrawTexture(new Rect(256, 0, 256, 256), terrainNormalMap);
+        GUI.DrawTexture(new Rect(256, 0, 256, 256), normalMap);
         GUI.DrawTexture(new Rect(0, 256, 256, 256), blurMap1);
         GUI.DrawTexture(new Rect(256, 256, 256, 256), blurMap2);
     }
@@ -151,8 +157,12 @@ public class TextureMapsGenerator : MonoBehaviour {
         shader.SetFloat("_Scale", scale);
 
         // Set the texture maps.
+        shader.SetTexture(kernelID, "_TerrainMap", terrainMap);
         shader.SetTexture(kernelID, "_TerrainMapView", terrainMap);
-        shader.SetTexture(kernelID, "_NormalMapView", terrainNormalMap);
+        shader.SetTexture(kernelID, "_NormalMap", normalMap);
+        shader.SetTexture(kernelID, "_NormalMapView", normalMap);
+        shader.SetTexture(kernelID, "_CoverageMap", coverageMap);
+        shader.SetTexture(kernelID, "_CoverageMapView", coverageMap);
         shader.SetTexture(kernelID, "_BlurredMapView", blurMap2);
     }
 
@@ -163,8 +173,12 @@ public class TextureMapsGenerator : MonoBehaviour {
         material.SetFloat("_Scale", scale);
 
         // Set the texture maps.
+        material.SetTexture("_TerrainMap", terrainMap);
         material.SetTexture("_TerrainMapView", terrainMap);
-        material.SetTexture("_NormalMapView", terrainNormalMap);
+        material.SetTexture("_NormalMap", normalMap);
+        material.SetTexture("_NormalMapView", normalMap);
+        material.SetTexture("_CoverageMap", coverageMap);
+        material.SetTexture("_CoverageMapView", coverageMap);
         material.SetTexture("_BlurredMapView", blurMap2);
     }
 }
