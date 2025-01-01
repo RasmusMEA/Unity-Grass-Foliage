@@ -1,0 +1,13 @@
+fileFormatVersion: 2
+guid: 31ebd1dae5cdceb4bb561b4fd587704c
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - vegetationInstancer: {fileID: 7200000, guid: d14e88bcb1b24c94793dd952827c0dbd,
+      type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

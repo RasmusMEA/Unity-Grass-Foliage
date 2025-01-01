@@ -1,0 +1,140 @@
+#pragma kernel DistributeVegetation
+#pragma kernel ComputePrefixSum
+#pragma kernel SortInstances
+
+// Imports
+#include "TextureMaps.hlsl"
+#include "Assets/ShaderLibrary/Common/CommonLibrary.hlsl"
+
+// Jittered grid sampling
+uint2 _CellCount;
+float _CellSize;
+
+// Influence data for all vegetation instances, containing influence data in the range [0.0, 1.0]
+// Packing:
+// 1: Height
+// 2: Water Depth
+// 3: Relative Height
+// 4: Slope
+// 5: Moisture
+uint _DataPoints;                            // Number of data points per influence curve
+uint _VegetationCount;                       // Number of different vegetation types
+StructuredBuffer<float> _InfluenceData;     // Offset: VegetationIndex * _DataPoints * 5 + DataType * _DataPoints
+
+// Resulting instance data, vegetationIndex for sorting instances and objectToWorld for Instancing
+struct InstancePosition {
+    int vegetationIndex;
+    float4x4 objectToWorld;
+};
+
+// Result buffers for the vegetation instances
+uint _MaxInstanceCount;                                         // Maximum number of vegetation instances
+RWStructuredBuffer<uint> _InstanceCount;                        // Total number of vegetation instances
+AppendStructuredBuffer<InstancePosition> _InstancePositions;    // Vegetation instances to be sorted
+StructuredBuffer<InstancePosition> _Positions;                  // Read buffer for the vegetation instances
+RWStructuredBuffer<uint2> _InstanceIndex;                       // <instanceCount, startIndex> for each vegetation type
+RWStructuredBuffer<uint> _InstanceOffset;                       // Local offset when sorting for each vegetation type
+RWStructuredBuffer<float4x4> _InstanceData;                     // Object to world matrix for each instance, sorted by vegetation type
+
+float InterpolateInfluence(int vegetationIndex, int dataType, float value) {
+    float index = vegetationIndex * _DataPoints * 5 + dataType * _DataPoints + value * _DataPoints;
+    return _InfluenceData[floor(index)] * frac(index) + _InfluenceData[max(_DataPoints - 1, ceil(index))] * (1 - frac(index));
+}
+
+float CalculateWeight(int vegetationIndex, float4 terrainData, float3 normal) {
+    float weight = 1.0f;
+    weight *= InterpolateInfluence(vegetationIndex, 0, terrainData.x);
+    weight *= InterpolateInfluence(vegetationIndex, 1, terrainData.y);
+    weight *= InterpolateInfluence(vegetationIndex, 2, terrainData.z);
+    weight *= InterpolateInfluence(vegetationIndex, 3, 1 - normal.z);
+    weight *= InterpolateInfluence(vegetationIndex, 4, terrainData.w);
+    return weight;
+}
+
+[numthreads(8,8,1)]
+void DistributeVegetation(uint3 id : SV_DispatchThreadID) {
+    if (id.x >= _CellCount.x || id.y >= _CellCount.y) { return; }
+    
+    // Get the current grid cell and jitter the position
+    float2 cellCenter = float2(id.x - _CellCount.x / 2.0, id.y - _CellCount.y / 2.0) * _CellSize + _CellSize / 2.0;
+    float3 positionWS = float3(cellCenter.x + (rand(cellCenter.x * 4871) - 0.5) * _CellSize, 0, cellCenter.y + (rand(cellCenter.y * 5237) - 0.5) * _CellSize);
+
+    // Get terrain data for the cell
+    bool validTerrain;
+    bool validNormal;
+    float4 terrainData = SampleTextureWorldPosition(_TerrainMapView, sampler_TerrainMapView, positionWS, validTerrain);
+    float3 normal = SampleTextureWorldPosition(_NormalMapView, sampler_NormalMapView, positionWS, validNormal).xyz;
+    if (!validTerrain || !validNormal) { return; }
+
+    // Set the height of the position
+    positionWS.y = (terrainData.x - 0.5) * 150;
+
+    // Calculate the total weight for the vegetation instances
+    float totalWeight = 0.0f;
+    for (uint i = 0; i < _VegetationCount; i++) {
+        totalWeight += CalculateWeight(i, terrainData, normal);
+    }
+
+    // Pick at random a vegetation instance based on the weight
+    float currentWeight = rand(dot(floor(positionWS * 1000) / 1000, float3(6047, 4871, 5237))) * totalWeight;
+    int vegetationIndex = -1;
+    for (i = 0; i < _VegetationCount; i++) {
+
+        // Subtract the weight from the current weight and check if the current weight is less than or equal to zero
+        if (currentWeight -= CalculateWeight(i, terrainData, normal) <= 0) {
+            vegetationIndex = i;
+            break;
+        }
+    }
+
+    // Append the instance to the position buffer
+    InstancePosition instancePosition;
+    instancePosition.vegetationIndex = vegetationIndex;
+    instancePosition.objectToWorld = float4x4(
+        float4(1, 0, 0, positionWS.x),
+        float4(0, 1, 0, positionWS.y),
+        float4(0, 0, 1, positionWS.z),
+        float4(0, 0, 0, 1)
+    );
+
+    // Check instance count
+    uint instanceCount;
+    InterlockedAdd(_InstanceCount[0], 1, instanceCount);
+
+    // If possible, add instance and increment instance count for vegetation type
+    if (instanceCount < _MaxInstanceCount) {
+        _InstancePositions.Append(instancePosition);
+        InterlockedAdd(_InstanceIndex[vegetationIndex].x, 1);
+    }
+}
+
+[numthreads(1,1,1)]
+void ComputePrefixSum(uint3 id : SV_DispatchThreadID) {
+    if (id.x >= 1) { return; }
+
+    // Calculate the prefix sum for the instance index buffer
+    uint sum = 0;
+    for (uint i = 0; i < _VegetationCount; i++) {
+        _InstanceIndex[i].y = sum;
+        sum += _InstanceIndex[i].x;
+
+        // Reset the instance offset buffer
+        _InstanceOffset[i] = 0;
+    }
+}
+
+[numthreads(64,1,1)]
+void SortInstances(uint3 id : SV_DispatchThreadID) {
+    if (id.x >= _InstanceCount[0]) { return; }
+
+    // // Get current instance
+    // InstancePosition instance = _Positions[id.x];
+    // int vegetationIndex = instance.vegetationIndex;
+    // float4x4 objectToWorld = instance.objectToWorld;
+
+    // // Allocate a slot for the instance and insert it into the instance buffer
+    // uint instanceOffset;
+    // InterlockedAdd(_InstanceOffset[instance.vegetationIndex], 1, instanceOffset);
+    // _InstanceData[_InstanceIndex[instance.vegetationIndex].y + instanceOffset] = instance.objectToWorld;
+    _InstanceData[id.x] = _Positions[id.x].objectToWorld;
+}
