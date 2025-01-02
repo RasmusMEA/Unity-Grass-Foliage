@@ -56,10 +56,10 @@ void Main(uint3 id : SV_DispatchThreadID) {
         if (v2Hash < v1Hash) { int temp = order.y; float temp2 = v1Hash; order.y = order.z; v1Hash = v2Hash; order.z = temp; v2Hash = temp2; }
     #endif
 
-    hashPosition = dot(floor(hashPosition * 100) / 100, float3(6047, 4871, 5237));
+    float hash = dot(floor(hashPosition * 100) / 100, float3(6047, 4871, 5237));
 
     // Random numbers
-    uint positionHash = asuint(rand(dot(hashPosition, float3(1, 1, 1)))) ^ asuint(dot(hashPosition, float3(1, 1, 1)));
+    uint positionHash = asuint(rand(hash)) ^ asuint(hash);
     float r = rand(positionHash * 701 ^ id.y * 109);
     float r2 = rand(positionHash * 461 ^ id.y * 1031);
 
@@ -121,7 +121,7 @@ void Main(uint3 id : SV_DispatchThreadID) {
         //float3 terrainNormal = normalize(SampleTextureWorldPosition(_NormalMapView, sampler_NormalMapView, position, validNormal).xyz * 2 - 1);
         
         //normal = float3(terrainNormal.x, terrainNormal.z, terrainNormal.y);
-        height = terrainData.w * _GrassHeight;
+        height = (terrainData.w + 0.5) * _GrassHeight;
 
         if (terrainData.x < 0.5) { return; }
         if (!validTerrain || !validNormal) { return; }

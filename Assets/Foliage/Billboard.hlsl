@@ -6,6 +6,9 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
+// includes for Instancing
+#include "UnityInstancing.cginc"
+
 // Variables
 half4 _Color;
 Texture2D _LeafTexture;
@@ -35,11 +38,6 @@ struct VertexOutput {
 // Vertex shader
 VertexOutput vert(InstancedVertexInput input, uint svInstanceID : SV_InstanceID) {
     VertexOutput output = (VertexOutput)0;
-
-    // // Get instance data
-    // InitIndirectDrawArgs(0);
-    // uint cmdID = GetCommandID(0);
-    // uint instanceID = GetIndirectInstanceID(svInstanceID);
 
     // Remap UV to [-1, 1]
     float2 uv = input.uv * 2 - 1;

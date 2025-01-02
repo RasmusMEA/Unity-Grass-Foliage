@@ -2,8 +2,6 @@
 #ifndef RENDERING_HLSL
 #define RENDERING_HLSL
 
-// Includes
-
 // LOD settings and camera position, x = near, y = far, z = curve factor
 float3 _LODSettings;
 float3 _CameraPositionWS;
