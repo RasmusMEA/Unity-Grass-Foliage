@@ -11,7 +11,7 @@ float3 _PositionWS;
 // R: Height
 // G: Water-height
 // B: Relative height (Currently unused)
-// B: Moisture
+// A: Moisture
 RWTexture2D<float4> _TerrainMap;
 Texture2D<float4> _TerrainMapView;
 SamplerState sampler_TerrainMapView {

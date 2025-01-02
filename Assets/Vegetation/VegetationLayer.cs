@@ -8,7 +8,7 @@ public class VegetationLayer : ScriptableObject {
     [Header("Layer Settings")]
 
     [Header("Influence Data Settings")]
-    [SerializeField] private int influenceDataPoints;
+    [SerializeField] [Range(2, 100)] private int influenceDataPoints;
 
     [Header("Jitter Grid Settings")]
     [SerializeField] private int cellSize;
@@ -37,7 +37,7 @@ public class VegetationLayer : ScriptableObject {
 
         // Create compute buffers.
         instanceCounter = new ComputeBuffer(1, sizeof(int));
-        influenceDataBuffer = new ComputeBuffer(vegetationInstances.Count, sizeof(float) * influenceDataPoints * 5);
+        influenceDataBuffer = new ComputeBuffer(vegetationInstances.Count * influenceDataPoints * 5, sizeof(float));
         instancePositionsBuffer = new ComputeBuffer(maxInstances, sizeof(int) + sizeof(float) * 16);
         instanceIndexBuffer = new ComputeBuffer(vegetationInstances.Count, sizeof(int) * 2);
         instanceOffsetBuffer = new ComputeBuffer(vegetationInstances.Count, sizeof(int));
@@ -51,11 +51,11 @@ public class VegetationLayer : ScriptableObject {
         float[] influenceData = new float[vegetationInstances.Count * influenceDataPoints * 5];
         for (int i = 0; i < vegetationInstances.Count; i++) {
             for (int j = 0; j < influenceDataPoints; j++) {
-                influenceData[i * influenceDataPoints * 5 + j + influenceDataPoints * 0] = vegetationInstances[i].heightInfluence.Evaluate(j / (float)influenceDataPoints);
-                influenceData[i * influenceDataPoints * 5 + j + influenceDataPoints * 1] = vegetationInstances[i].waterDepthInfluence.Evaluate(j / (float)influenceDataPoints);
-                influenceData[i * influenceDataPoints * 5 + j + influenceDataPoints * 2] = vegetationInstances[i].relativeHeightInfluence.Evaluate(j / (float)influenceDataPoints);
-                influenceData[i * influenceDataPoints * 5 + j + influenceDataPoints * 3] = vegetationInstances[i].slopeInfluence.Evaluate(j / (float)influenceDataPoints);
-                influenceData[i * influenceDataPoints * 5 + j + influenceDataPoints * 4] = vegetationInstances[i].moistureInfluence.Evaluate(j / (float)influenceDataPoints);
+                influenceData[i * influenceDataPoints * 5 + influenceDataPoints * 0 + j] = vegetationInstances[i].heightInfluence.Evaluate(j / ((float)influenceDataPoints - 1));
+                influenceData[i * influenceDataPoints * 5 + influenceDataPoints * 1 + j] = vegetationInstances[i].waterDepthInfluence.Evaluate(j / ((float)influenceDataPoints - 1));
+                influenceData[i * influenceDataPoints * 5 + influenceDataPoints * 2 + j] = vegetationInstances[i].relativeHeightInfluence.Evaluate(j / ((float)influenceDataPoints - 1));
+                influenceData[i * influenceDataPoints * 5 + influenceDataPoints * 3 + j] = vegetationInstances[i].slopeInfluence.Evaluate(j / ((float)influenceDataPoints - 1));
+                influenceData[i * influenceDataPoints * 5 + influenceDataPoints * 4 + j] = vegetationInstances[i].moistureInfluence.Evaluate(j / ((float)influenceDataPoints - 1));
             }
         }
         influenceDataBuffer.SetData(influenceData);
@@ -67,6 +67,7 @@ public class VegetationLayer : ScriptableObject {
         instanceIndexBuffer?.Release();
         instanceOffsetBuffer?.Release();
         instanceDataBuffer?.Release();
+        instanceCounter?.Release();
     }
 
     public void DistributeVegetation(VegetationInstancer vegetationInstancer, ComputeShader vegetationInstancerShader) {
@@ -108,6 +109,8 @@ public class VegetationLayer : ScriptableObject {
         vegetationInstancerShader.SetBuffer(vegetationInstancer.distributionKernelID, "_InstancePositions", instancePositionsBuffer);
         vegetationInstancerShader.SetBuffer(vegetationInstancer.distributionKernelID, "_InstanceIndex", instanceIndexBuffer);
 
+        vegetationInstancerShader.SetBuffer(vegetationInstancer.distributionKernelID, "_InstanceData", instanceDataBuffer);
+
         vegetationInstancerShader.Dispatch(vegetationInstancer.distributionKernelID, dispatchSize.x, dispatchSize.y, dispatchSize.z);
 
         // Compute the prefix sum.
@@ -143,14 +146,11 @@ public class VegetationLayer : ScriptableObject {
 
         // Read back the instance positions.
         instanceDataBuffer.GetData(instancePositions);
+
+        Debug.Log("Instance count: " + instanceCount);
     }
 
     public void RenderVegetation() {
-
-        // Read back instance counter for debugging.
-        int[] instanceCount = new int[1];
-        instanceCounter.GetData(instanceCount);
-        Debug.Log("Instance count: " + instanceCount[0]);
 
         // Render the vegetation.
         for (int i = 0; i < vegetationInstances.Count; i++) {
@@ -158,10 +158,11 @@ public class VegetationLayer : ScriptableObject {
 
             // Setup RenderParams.
             RenderParams rp = new RenderParams(vegetationInstance.material);
+            rp.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
             rp.worldBounds = new Bounds(Vector3.zero, new Vector3(1000, 1000, 1000));
 
             // Render batches of instances.
-            uint batches = args[i * 2] / 1023 + 1;
+            int batches = Mathf.CeilToInt(args[i * 2] / 1023f);
             for (int j = 0; j < batches; j++) {
 
                 // Calculate the dispatch size and draw the vegetation.

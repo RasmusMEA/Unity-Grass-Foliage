@@ -52,9 +52,9 @@ void GenerateMoistureMap(uint3 id : SV_DispatchThreadID) {
     // Calculate variables for the moisture
     float relativeHeight = (terrain.x - blurredTerrain.x);
     float waterSpread = min(1, terrain.z + blurredTerrain.z);
-    float relativeMoisture = saturate(relativeHeight + _NormalMap[id.xy].z);
+    float relativeMoisture = saturate(relativeHeight + (1 - _NormalMap[id.xy].z));
 
     // Calculate the moisture
-    float moisture = saturate((1 - height) + waterSpread) * relativeMoisture + saturate(relativeHeight + waterSpread + isWater);
+    float moisture = saturate(1 - height + waterSpread) * relativeMoisture + saturate(relativeHeight + waterSpread + isWater);
     _TerrainMap[id.xy] = float4(height, waterHeight, relativeHeight, moisture);
 }
