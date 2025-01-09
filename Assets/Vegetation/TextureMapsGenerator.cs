@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-[ExecuteInEditMode]
+[ExecuteInEditMode, DefaultExecutionOrder(-1)]
 public class TextureMapsGenerator : MonoBehaviour {
 
     // Compute shader.
