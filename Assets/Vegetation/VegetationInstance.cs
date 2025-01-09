@@ -6,8 +6,7 @@ using UnityEngine;
 public class VegetationInstance : ScriptableObject {
     
     [Header("Vegetation Settings")]
-    [SerializeField] public Mesh mesh;
-    [SerializeField] public Material material;
+    [SerializeField] public GameObject prefab;
 
     [Header("Vegetation Distribution")]
     [SerializeField] public AnimationCurve heightInfluence = AnimationCurve.Linear(0, 0, 1, 1);

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Instanced Large Plane
   m_EditorClassIdentifier: 
   grassRenderingMethod: 0
-  shadowCastingMode: 0
+  shadowCastingMode: 2
   grassVisuals: 0
   grassBladeMesh: {fileID: 0}
   grassBladeTexture: {fileID: 0}
@@ -22,13 +22,13 @@ MonoBehaviour:
   cameraLODFar: 15
   cameraLODFactor: 1
   maxBladeSegments: 3
-  grassBladesPerTriangle: 90
-  grassHeight: 0.3
-  grassWidth: 0.012
+  grassBladesPerTriangle: 50
+  grassHeight: 0.42
+  grassWidth: 0.009
   grassBend: 0
   grassSlant: 0
   grassRigidity: 1
-  grassHeightVariation: 0
+  grassHeightVariation: 0.189
   grassWidthVariation: 0
   grassBendVariation: 0
   grassSlantVariation: 0

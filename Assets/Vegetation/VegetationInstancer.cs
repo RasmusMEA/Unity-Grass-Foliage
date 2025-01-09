@@ -2,11 +2,14 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+[ExecuteInEditMode]
 public class VegetationInstancer : MonoBehaviour {
 
     // Compute shader.
     [SerializeField] private ComputeShader vegetationInstancer;
     private ComputeShader instantiatedVegetationInstancer;
+
+    [SerializeField] private bool updateEveryFrame = false;
 
     [Header("Vegetation Layers")]
     [SerializeField] private List<VegetationLayer> vegetationLayers;
@@ -44,8 +47,11 @@ public class VegetationInstancer : MonoBehaviour {
         }
 
         // Distribute the vegetation.
+        int coverageChannel = 0;
         foreach (VegetationLayer layer in vegetationLayers) {
+            instantiatedVegetationInstancer.SetInt("_CoverageChannel", coverageChannel);
             layer.DistributeVegetation(this, instantiatedVegetationInstancer);
+            coverageChannel ^= 1;
         }
     }
 
@@ -59,6 +65,23 @@ public class VegetationInstancer : MonoBehaviour {
 
     // Update is called once per frame
     void Update() {
+
+        if (updateEveryFrame) {
+            
+            // Set up the layers.
+            foreach (VegetationLayer layer in vegetationLayers) {
+                layer.Release();
+                layer.Setup();
+            }
+
+            // Distribute the vegetation.
+            int coverageChannel = 0;
+            foreach (VegetationLayer layer in vegetationLayers) {
+                instantiatedVegetationInstancer.SetInt("_CoverageChannel", coverageChannel);
+                layer.DistributeVegetation(this, instantiatedVegetationInstancer);
+                coverageChannel ^= 1;
+            }
+        }
 
         // Render the instances.
         foreach (VegetationLayer layer in vegetationLayers) {

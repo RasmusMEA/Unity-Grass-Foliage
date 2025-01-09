@@ -118,9 +118,9 @@ void Main(uint3 id : SV_DispatchThreadID) {
         bool validNormal = true;
         
         float4 terrainData = SampleTextureWorldPosition(_TerrainMapView, sampler_TerrainMapView, position, validTerrain);
-        //float3 terrainNormal = normalize(SampleTextureWorldPosition(_NormalMapView, sampler_NormalMapView, position, validNormal).xyz * 2 - 1);
+        float3 terrainNormal = normalize(SampleTextureWorldPosition(_NormalMapView, sampler_NormalMapView, position, validNormal).xyz * 2 - 1);
         
-        //normal = float3(terrainNormal.x, terrainNormal.z, terrainNormal.y);
+        normal = float3(terrainNormal.x, terrainNormal.z, terrainNormal.y);
         height = (terrainData.w + 0.5) * _GrassHeight;
 
         if (terrainData.x < 0.5) { return; }

@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c72b04df6eae31548b0720434e981f05, type: 3}
+  m_Name: Small Layer
+  m_EditorClassIdentifier: 
+  seed: 91428491
+  influenceDataPoints: 100
+  cellSize: 4
+  maxInstances: 20000
+  vegetationInstances:
+  - {fileID: 11400000, guid: 5bbb5934b8cd35141b8c8f83f4db6ef9, type: 2}

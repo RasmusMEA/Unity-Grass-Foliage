@@ -7,6 +7,7 @@
 #include "Assets/ShaderLibrary/Common/CommonLibrary.hlsl"
 
 // Jittered grid sampling
+int _Seed;
 uint2 _CellCount;
 float _CellSize;
 
@@ -45,7 +46,7 @@ float InterpolateInfluence(int vegetationIndex, int dataType, float value) {
 float CalculateWeight(int vegetationIndex, float4 terrainData, float3 normal) {
     float weight = 1.0f;
     weight *= InterpolateInfluence(vegetationIndex, 0, terrainData.x);
-    weight *= InterpolateInfluence(vegetationIndex, 1, terrainData.y);
+    weight *= InterpolateInfluence(vegetationIndex, 1, terrainData.y + (1 / _DataPoints) * terrainData.y > 0);
     weight *= InterpolateInfluence(vegetationIndex, 2, terrainData.z);
     weight *= InterpolateInfluence(vegetationIndex, 3, 1 - normal.z);
     weight *= InterpolateInfluence(vegetationIndex, 4, terrainData.w);
@@ -61,9 +62,9 @@ void DistributeVegetation(uint3 id : SV_DispatchThreadID) {
     
     // Random numbers
     float hash = dot(floor(cellCenter * 100) / 100, float3(6047, 4871, 5237).xy);
-    uint positionHash = asuint(rand(hash)) ^ asuint(hash);
-    float r = rand(positionHash * 701 ^ id.y * 109);
-    float r2 = rand(positionHash * 461 ^ id.y * 1031);
+    uint positionHash = asuint(rand(hash)) ^ asuint(hash) ^ _Seed;
+    float r = rand(positionHash * 701);
+    float r2 = rand(positionHash * 461);
 
     // Jitter the position
     float2 jitter = float2(r - 0.5, r2 - 0.5) * _CellSize;
@@ -79,13 +80,25 @@ void DistributeVegetation(uint3 id : SV_DispatchThreadID) {
     // Set the height of the position
     positionWS.y = (terrainData.x - 0.5) * 150;
 
-    // Pick at random a vegetation instance based on the weight
-    float currentWeight = rand(positionHash * 1031 ^ id.y * 701) * _VegetationCount;
-    int vegetationIndex = -1;
+    // Count all vegetation instances that is above a chosen threshold
+    float threshold = rand(positionHash * 1031);
+    float totalWeight = 0;
+    int count = 0;
     for (uint i = 0; i < _VegetationCount; i++) {
+        float weight = CalculateWeight(i, terrainData, normal);
+        count += weight > threshold;
+        totalWeight += weight * (weight > threshold);
+    }
 
-        // Subtract the weight from the current weight and check if the current weight is less than or equal to zero
-        if ((currentWeight -= CalculateWeight(i, terrainData, normal)) <= 0) {
+    // Pick at random a vegetation instance based on the weight
+    float currentWeight = rand(positionHash * 4871) * totalWeight;
+    int vegetationIndex = -1;
+    for (i = 0; i < _VegetationCount; i++) {
+        float weight = CalculateWeight(i, terrainData, normal);
+        
+        // If above threshold, subtract weight from current weight and check if current weight is <= 0
+        if (weight <= threshold) { continue; }
+        if ((currentWeight -= weight) <= 0) {
             vegetationIndex = i;
             break;
         }
@@ -94,27 +107,42 @@ void DistributeVegetation(uint3 id : SV_DispatchThreadID) {
     // No vegetation instance was picked
     if (vegetationIndex == -1) { return; }
 
-    // Append the instance to the position buffer
-    InstancePosition instancePosition = (InstancePosition)0;
-    instancePosition.vegetationIndex = vegetationIndex;
-    instancePosition.objectToWorld = float4x4(
-        float4(1, 0, 0, positionWS.x),
-        float4(0, 1, 0, positionWS.y),
-        float4(0, 0, 1, positionWS.z),
-        float4(0, 0, 0, 1)
-    );
-
     // Check instance count
     uint instanceCount;
     InterlockedAdd(_InstanceCount[0], 1, instanceCount);
 
-    // If possible, add instance and increment instance count for vegetation type
-    if (instanceCount < _MaxInstanceCount) {
-        _InstancePositions[instanceCount] = instancePosition;
-        InterlockedAdd(_InstanceIndex[vegetationIndex].x, 1);
-    } else {
+    // If no more instances can be added, remove the instance and return
+    if (instanceCount >= _MaxInstanceCount) {
         InterlockedAdd(_InstanceCount[0], -1, instanceCount);
     }
+
+    // Random scale and rotation around normal
+    float scale = 1.0 + (rand(positionHash * 6047) * 2 - 1) * 0.2;
+    float rotation = rand(positionHash * 5237) * 2 * 3.14159265359;
+    float4x4 objectToWorld = float4x4(
+        float4(cos(rotation) * scale, 0, sin(rotation) * scale, positionWS.x),
+        float4(0, scale, 0, positionWS.y),
+        float4(-sin(rotation) * scale, 0, cos(rotation) * scale, positionWS.z),
+        float4(0, 0, 0, 1)
+    );
+
+    // Normal transformation
+    // float3 normalWS = float3(normal.x, normal.z, normal.y);
+    // float3 tangent = normalize(cross(normalWS, float3(1, 1, 1)));
+    // float3 bitangent = cross(normalWS, tangent);
+    // float4x4 TBN = transpose(float4x4(
+    //     float4(tangent, 0),
+    //     float4(bitangent, 0),
+    //     float4(normalWS, 0),
+    //     float4(0, 0, 0, 1)
+    // ));
+
+    // Write instance data
+    InstancePosition instancePosition = (InstancePosition)0;
+    instancePosition.vegetationIndex = vegetationIndex;
+    instancePosition.objectToWorld = objectToWorld; //mul(objectToWorld, TBN);
+    _InstancePositions[instanceCount] = instancePosition;
+    InterlockedAdd(_InstanceIndex[vegetationIndex].x, 1);
 }
 
 [numthreads(1,1,1)]

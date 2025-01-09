@@ -6,6 +6,7 @@ using UnityEngine;
 public class VegetationLayer : ScriptableObject {
 
     [Header("Layer Settings")]
+    [SerializeField] private int seed;
 
     [Header("Influence Data Settings")]
     [SerializeField] [Range(2, 100)] private int influenceDataPoints;
@@ -85,6 +86,7 @@ public class VegetationLayer : ScriptableObject {
         );
 
         // Set shader variables.
+        vegetationInstancerShader.SetInt("_Seed", seed);
         vegetationInstancerShader.SetInt("_DataPoints", influenceDataPoints);
         vegetationInstancerShader.SetInt("_MaxInstanceCount", maxInstances);
 
@@ -136,13 +138,15 @@ public class VegetationLayer : ScriptableObject {
         );
 
         // Sort the instances.
-        vegetationInstancerShader.SetBuffer(vegetationInstancer.sortKernelID, "_InstanceCount", instanceCounter);
-        vegetationInstancerShader.SetBuffer(vegetationInstancer.sortKernelID, "_Positions", instancePositionsBuffer);
-        vegetationInstancerShader.SetBuffer(vegetationInstancer.sortKernelID, "_InstanceIndex", instanceIndexBuffer);
-        vegetationInstancerShader.SetBuffer(vegetationInstancer.sortKernelID, "_InstanceOffset", instanceOffsetBuffer);
-        vegetationInstancerShader.SetBuffer(vegetationInstancer.sortKernelID, "_InstanceData", instanceDataBuffer);
+        if (instanceCount > 0) {
+            vegetationInstancerShader.SetBuffer(vegetationInstancer.sortKernelID, "_InstanceCount", instanceCounter);
+            vegetationInstancerShader.SetBuffer(vegetationInstancer.sortKernelID, "_Positions", instancePositionsBuffer);
+            vegetationInstancerShader.SetBuffer(vegetationInstancer.sortKernelID, "_InstanceIndex", instanceIndexBuffer);
+            vegetationInstancerShader.SetBuffer(vegetationInstancer.sortKernelID, "_InstanceOffset", instanceOffsetBuffer);
+            vegetationInstancerShader.SetBuffer(vegetationInstancer.sortKernelID, "_InstanceData", instanceDataBuffer);
 
-        vegetationInstancerShader.Dispatch(vegetationInstancer.sortKernelID, sortDispatchSize.x, sortDispatchSize.y, sortDispatchSize.z);
+            vegetationInstancerShader.Dispatch(vegetationInstancer.sortKernelID, sortDispatchSize.x, sortDispatchSize.y, sortDispatchSize.z);
+        }
 
         // Read back the instance positions.
         instanceDataBuffer.GetData(instancePositions);
@@ -156,20 +160,31 @@ public class VegetationLayer : ScriptableObject {
         for (int i = 0; i < vegetationInstances.Count; i++) {
             VegetationInstance vegetationInstance = vegetationInstances[i];
 
-            // Setup RenderParams.
-            RenderParams rp = new RenderParams(vegetationInstance.material);
-            rp.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
-            rp.worldBounds = new Bounds(Vector3.zero, new Vector3(1000, 1000, 1000));
+            // Get the mesh and materials.
+            Mesh mesh = vegetationInstance.prefab.GetComponent<MeshFilter>().sharedMesh;
+            Material[] materials = vegetationInstance.prefab.GetComponent<MeshRenderer>().sharedMaterials;
+            
+            // Render all submeshes with given material.
+            for (int j = 0; j < materials.Length; j++) {
+                Material material = materials[j];
+                material.enableInstancing = true;
 
-            // Render batches of instances.
-            int batches = Mathf.CeilToInt(args[i * 2] / 1023f);
-            for (int j = 0; j < batches; j++) {
+                // Setup RenderParams.
+                RenderParams rp = new RenderParams(material);
+                rp.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                rp.worldBounds = new Bounds(Vector3.zero, new Vector3(1000, 1000, 1000));
 
-                // Calculate the dispatch size and draw the vegetation.
-                uint dispatchSize = (uint)Mathf.Min(1023, args[i * 2] - j * 1023);
-                uint startIndex = (uint)args[i * 2 + 1] + (uint)j * 1023;
-                Graphics.RenderMeshInstanced(rp, vegetationInstance.mesh, 0, instancePositions, (int)dispatchSize, (int)startIndex);
+                // Render batches of instances.
+                int batches = Mathf.CeilToInt(args[i * 2] / 1023f);
+                for (int k = 0; k < batches; k++) {
+
+                    // Calculate the dispatch size and draw the vegetation.
+                    uint dispatchSize = (uint)Mathf.Min(1023, args[i * 2] - k * 1023);
+                    uint startIndex = (uint)args[i * 2 + 1] + (uint)k * 1023;
+                    Graphics.RenderMeshInstanced(rp, mesh, j, instancePositions, (int)dispatchSize, (int)startIndex);
+                }
             }
+
         }
     }
 }

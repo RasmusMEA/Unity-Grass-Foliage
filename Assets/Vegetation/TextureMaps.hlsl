@@ -7,6 +7,9 @@ float _Scale;
 float2 _Dimensions;
 float3 _PositionWS;
 
+// For toggling between the different texture maps, indicates which channel to write to
+int _CoverageChannel;
+
 // Texture map for the terrain, where each channel represents a different property of the terrain
 // R: Height
 // G: Water-height
@@ -35,8 +38,8 @@ SamplerState sampler_NormalMapView {
 // G: Medium vegetation
 // B: Small vegetation
 // A: Objects
-RWTexture2D<float4> _CoverageMap;
-Texture2D<float4> _CoverageMapView;
+RWTexture2D<float2> _CoverageMap;
+Texture2D<float2> _CoverageMapView;
 SamplerState sampler_CoverageMapView {
     Filter = MIN_MAG_MIP_LINEAR;
     AddressU = Clamp;
