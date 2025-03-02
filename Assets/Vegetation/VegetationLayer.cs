@@ -12,7 +12,7 @@ public class VegetationLayer : ScriptableObject {
     [SerializeField] [Range(2, 100)] private int influenceDataPoints;
 
     [Header("Jitter Grid Settings")]
-    [SerializeField] private int cellSize;
+    [SerializeField] private float cellSize;
 
     [Header("Vegetation Settings")]
     [SerializeField] private int maxInstances;
@@ -184,7 +184,6 @@ public class VegetationLayer : ScriptableObject {
                     Graphics.RenderMeshInstanced(rp, mesh, j, instancePositions, (int)dispatchSize, (int)startIndex);
                 }
             }
-
         }
     }
 }

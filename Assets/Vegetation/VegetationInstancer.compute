@@ -91,7 +91,7 @@ void DistributeVegetation(uint3 id : SV_DispatchThreadID) {
     }
 
     // Pick at random a vegetation instance based on the weight
-    float currentWeight = rand(positionHash * 4871) * totalWeight;
+    float currentWeight = rand(positionHash * 4871 ^ positionHash) * totalWeight;
     int vegetationIndex = -1;
     for (i = 0; i < _VegetationCount; i++) {
         float weight = CalculateWeight(i, terrainData, normal);

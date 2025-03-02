@@ -96,6 +96,7 @@ float SampleHeight(float x, float z) {
     
     // Get the height from the heightmap
     float height = FBMErosion(float2(x / 300, z / 300), 10).x * 150;
+    // height += FBMErosion(float2(x / 1500, z / 1500), 16).x * 750;
 
     // Return the height
     return height;

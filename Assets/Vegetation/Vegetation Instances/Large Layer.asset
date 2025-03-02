@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   seed: 6432641
   influenceDataPoints: 100
-  cellSize: 3
+  cellSize: 4
   maxInstances: 40000
   vegetationInstances:
   - {fileID: 11400000, guid: 513574a9d77317c408f6b5e45c342aa0, type: 2}
