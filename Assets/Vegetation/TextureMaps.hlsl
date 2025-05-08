@@ -4,6 +4,7 @@
 
 // Variables for the texture maps
 float _Scale;
+static const float _HeightScale = 900.0;
 float2 _Dimensions;
 float3 _PositionWS;
 

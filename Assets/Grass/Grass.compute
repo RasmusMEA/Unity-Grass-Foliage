@@ -21,7 +21,7 @@ float4x4 _LocalToWorld;
 bool _UseTerrainMaps;
 
 // Main compute shader
-[numthreads(8,8,1)]
+[numthreads(16,16,1)]
 void Main(uint3 id : SV_DispatchThreadID) {
     if (id.x >= _IndexCount / 3 || id.y >= _GrassBladesPerTriangle) { return; }
 

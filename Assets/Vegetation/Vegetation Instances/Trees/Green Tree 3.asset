@@ -12,13 +12,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c1f2890870d61fc4798217566a0d1689, type: 3}
   m_Name: Green Tree 3
   m_EditorClassIdentifier: 
-  prefab: {fileID: 3580269446105511064, guid: df380cafdbb15bc40b78791b8dcbbdfb, type: 3}
+  prefab: {fileID: 3069002413430523656, guid: 1fc46beccd3aa7c4486635967b630932, type: 3}
+  alignToNormal: 0
+  useHeightInfluence: 1
+  useWaterDepthInfluence: 1
+  useRelativeHeightInfluence: 1
+  useSlopeInfluence: 1
+  useMoistureInfluence: 1
   heightInfluence:
     serializedVersion: 2
     m_Curve:
     - serializedVersion: 3
-      time: 0.51834834
-      value: 0.002762381
+      time: 0.50026286
+      value: -0.0010828339
       inSlope: 5.334784
       outSlope: 5.334784
       tangentMode: 0
@@ -26,8 +32,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0.1794509
     - serializedVersion: 3
-      time: 0.67312694
-      value: 0.80741024
+      time: 0.6610725
+      value: 0.99828243
       inSlope: 0.25471273
       outSlope: 0.25471273
       tangentMode: 0
@@ -35,8 +41,8 @@ MonoBehaviour:
       inWeight: 0.945183
       outWeight: 0.8492611
     - serializedVersion: 3
-      time: 1.0006
-      value: 0.6958885
+      time: 0.97850525
+      value: 0.37776566
       inSlope: -1.1935005
       outSlope: -1.1935005
       tangentMode: 0
@@ -108,13 +114,22 @@ MonoBehaviour:
     m_Curve:
     - serializedVersion: 3
       time: -0.0000012721866
-      value: 0.99730515
+      value: -0.000077962875
       inSlope: 0.0038629747
       outSlope: 0.0038629747
       tangentMode: 0
       weightedMode: 0
       inWeight: 0
       outWeight: 1
+    - serializedVersion: 3
+      time: 0.06638212
+      value: 0.99858505
+      inSlope: 0.049081318
+      outSlope: 0.049081318
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 1
+      outWeight: 0.07534594
     - serializedVersion: 3
       time: 0.63148147
       value: 0.63950026

@@ -95,8 +95,9 @@ float3 FBMErosion(float2 p, int octaves) {
 float SampleHeight(float x, float z) {
     
     // Get the height from the heightmap
-    float height = FBMErosion(float2(x / 300, z / 300), 10).x * 150;
-    // height += FBMErosion(float2(x / 1500, z / 1500), 16).x * 750;
+    float height = FBMErosion(float2((x - 84191) / 300, (z + 942181) / 300), 10).x * 125;
+    height += FBMErosion(float2((x - 1841) / 500, (z + 67351) / 500), 10).x * 125;
+    height += FBMErosion(float2((x + 784311) / 1500, (z + 123487) / 1500), 16).x * 700 + 25;
 
     // Return the height
     return height;

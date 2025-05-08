@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c72b04df6eae31548b0720434e981f05, type: 3}
+  m_Name: Grass Layer
+  m_EditorClassIdentifier: 
+  seed: 87610568
+  influenceDataPoints: 100
+  cellSize: 0.25
+  maxInstances: 2000000
+  LODCount: 1
+  vegetationInstances:
+  - {fileID: 11400000, guid: 4b86949db7bfc6442a921359b6761846, type: 2}

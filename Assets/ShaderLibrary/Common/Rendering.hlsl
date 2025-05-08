@@ -26,4 +26,16 @@ bool FrustumCull(float3 position, float radius) {
     return false;
 }
 
+// Calculate the relative height of an object on the screen, returns a factor between 0 and 1
+float screenRelativeHeight(float3 positionWS, float radius) {
+    
+    // Calculate the distance from the camera to the object
+    float3 cameraToObject = positionWS - _CameraPositionWS;
+    float distance = length(cameraToObject);
+
+    // Calculate the screen size of the object based on its distance and radius
+    float screenSize = (radius * 2) / distance * _CameraFOV * _LODSettings.x;
+    return screenSize;
+}
+
 #endif // RENDERING_HLSL

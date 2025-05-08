@@ -1,26 +1,41 @@
 #pragma kernel DistributeVegetation
+#pragma kernel GenerateInstanceLODs
 #pragma kernel ComputePrefixSum
-#pragma kernel SortInstances
+#pragma kernel CullInstances
 
 // Imports
 #include "TextureMaps.hlsl"
 #include "Assets/ShaderLibrary/Common/CommonLibrary.hlsl"
+#include "Assets/ShaderLibrary/Common/Rendering.hlsl"
+#include "Assets/HiZ-Culling/HiZOcclusionCulling.hlsl"
 
 // Jittered grid sampling
 int _Seed;
 uint2 _CellCount;
 float _CellSize;
 
-// Influence data for all vegetation instances, containing influence data in the range [0.0, 1.0]
-// Packing:
-// 1: Height
-// 2: Water Depth
-// 3: Relative Height
-// 4: Slope
-// 5: Moisture
-uint _DataPoints;                           // Number of data points per influence curve
+// Vegetation data per vegetation type
 uint _VegetationCount;                      // Number of different vegetation types
-StructuredBuffer<float> _InfluenceData;     // Offset: VegetationIndex * _DataPoints * 5 + DataType * _DataPoints
+struct VegetationData {
+    float3 offset;                          // Offset of the vegetation instance
+    float3 scale;                           // Scale of the vegetation instance
+    float3 rotation;                        // Rotation of the vegetation instance
+
+    float size;                             // Size of the vegetation instance, used for culling
+    float alignToNormal;                    // Align the instance to the normal of the terrain (0 = none, 1 = fully aligned)
+
+    int influenceMask;                      // Influence mask for the vegetation influences
+};
+StructuredBuffer<VegetationData> _VegetationData;
+
+// Influence Data containing the influence weight given a value in range [0.0, 1.0]
+// Data Type Order: (Height, Water Depth, Relative Height, Slope, Moisture)
+uint _DataPoints;                           // Number of data points per vegetation influence
+StructuredBuffer<float> _InfluenceData;     // Offset: (VegetationIndex * DataTypeCount + DataTypeIndex) * _DataPoints + <Value> * (_DataPoints - 1)
+
+// LOD data, containing the LOD screen size scales in range [0.0, 1.0]
+uint _LODCount;                             // Number of LODs per vegetation instance
+StructuredBuffer<float> _LODData;           // Offset: VegetationIndex * _LODCount + <LODIndex>
 
 // Resulting instance data, vegetationIndex for sorting instances and objectToWorld for Instancing
 struct InstancePosition {
@@ -31,25 +46,29 @@ struct InstancePosition {
 // Result buffers for the vegetation instances
 uint _MaxInstanceCount;                                         // Maximum number of vegetation instances
 RWStructuredBuffer<uint> _InstanceCount;                        // Total number of vegetation instances
+RWStructuredBuffer<uint4> _InstanceIndex;                       // (<startIndex, instanceCount>, sortedCount, visibleCount) for each vegetation type
 RWStructuredBuffer<InstancePosition> _InstancePositions;        // Vegetation instances to be sorted
 StructuredBuffer<InstancePosition> _Positions;                  // Read buffer for the vegetation instances
-RWStructuredBuffer<uint2> _InstanceIndex;                       // <instanceCount, startIndex> for each vegetation type
-RWStructuredBuffer<uint> _InstanceOffset;                       // Local offset when sorting for each vegetation type
-RWStructuredBuffer<float4x4> _InstanceData;                     // Object to world matrix for each instance, sorted by vegetation type
+RWStructuredBuffer<float4x4> _InstancesSorted;                  // Object to world matrix for each instance, sorted and culled by visibility
 
 float InterpolateInfluence(int vegetationIndex, int dataType, float value) {
-    float index = vegetationIndex * _DataPoints * 5 + _DataPoints * dataType + value * (_DataPoints - 1);
-    float influence = _InfluenceData[floor(index)] * frac(index) + _InfluenceData[max(_DataPoints - 1, ceil(index))] * (1 - frac(index));
+    float index = (vegetationIndex * 5 + dataType) * _DataPoints + value * (_DataPoints - 1);
+    float influence = _InfluenceData[floor(index)] * frac(index) + _InfluenceData[ceil(index)] * (1 - frac(index));
     return saturate(influence);
 }
 
 float CalculateWeight(int vegetationIndex, float4 terrainData, float3 normal) {
     float weight = 1.0f;
-    weight *= InterpolateInfluence(vegetationIndex, 0, terrainData.x);
-    weight *= InterpolateInfluence(vegetationIndex, 1, terrainData.y + (1 / _DataPoints) * terrainData.y > 0);
-    weight *= InterpolateInfluence(vegetationIndex, 2, terrainData.z);
-    weight *= InterpolateInfluence(vegetationIndex, 3, 1 - normal.z);
-    weight *= InterpolateInfluence(vegetationIndex, 4, terrainData.w);
+    
+    // Get the influence mask for the vegetation instance
+    int mask = _VegetationData[vegetationIndex].influenceMask;
+
+    weight *= mask & 1 ? InterpolateInfluence(vegetationIndex, 0, terrainData.x) : 1.0f;
+    weight *= mask & 2 ? InterpolateInfluence(vegetationIndex, 1, terrainData.y + (1 / _DataPoints) * terrainData.y > 0) : 1.0f;
+    weight *= mask & 4 ? InterpolateInfluence(vegetationIndex, 2, terrainData.z) : 1.0f;
+    weight *= mask & 8 ? InterpolateInfluence(vegetationIndex, 3, 1 - normal.z) : 1.0f;
+    weight *= mask & 16 ? InterpolateInfluence(vegetationIndex, 4, terrainData.w) : 1.0f;
+
     return weight;
 }
 
@@ -58,7 +77,7 @@ void DistributeVegetation(uint3 id : SV_DispatchThreadID) {
     if (id.x >= _CellCount.x || id.y >= _CellCount.y) { return; }
 
     // Get the current grid cell center position
-    float2 cellCenter = (id.xy - _CellCount / 2.0) * _CellSize + _CellSize / 2.0;
+    float2 cellCenter = (id.xy - _CellCount / 2.0) * 2.0 * _CellSize + _CellSize / 2.0 + _PositionWS.xz; // Needs to round to cell size
     
     // Random numbers
     float hash = dot(floor(cellCenter * 100) / 100, float3(6047, 4871, 5237).xy);
@@ -78,7 +97,7 @@ void DistributeVegetation(uint3 id : SV_DispatchThreadID) {
     if (!validTerrain || !validNormal) { return; }
 
     // Set the height of the position
-    positionWS.y = (terrainData.x - 0.5) * 150;
+    positionWS.y = (terrainData.x - 0.5) * _HeightScale;
 
     // Count all vegetation instances that is above a chosen threshold
     float threshold = rand(positionHash * 1031);
@@ -113,36 +132,54 @@ void DistributeVegetation(uint3 id : SV_DispatchThreadID) {
 
     // If no more instances can be added, remove the instance and return
     if (instanceCount >= _MaxInstanceCount) {
-        InterlockedAdd(_InstanceCount[0], -1, instanceCount);
+        InterlockedAdd(_InstanceCount[0], -1);
+        return;
     }
 
     // Random scale and rotation around normal
-    float scale = 1.0 + (rand(positionHash * 6047) * 2 - 1) * 0.2;
+    VegetationData vegetationData = _VegetationData[vegetationIndex];
+    float3 scale = vegetationData.scale + (rand(positionHash * 6047) * 2 - 1) * 0.2;
     float rotation = rand(positionHash * 5237) * 2 * 3.14159265359;
     float4x4 objectToWorld = float4x4(
-        float4(cos(rotation) * scale, 0, sin(rotation) * scale, positionWS.x),
-        float4(0, scale, 0, positionWS.y),
-        float4(-sin(rotation) * scale, 0, cos(rotation) * scale, positionWS.z),
+        float4(cos(rotation) * scale.x, 0, sin(rotation) * scale.x, positionWS.x),
+        float4(0, scale.y, 0, positionWS.y),
+        float4(-sin(rotation) * scale.z, 0, cos(rotation) * scale.z, positionWS.z),
         float4(0, 0, 0, 1)
     );
 
-    // Normal transformation
-    // float3 normalWS = float3(normal.x, normal.z, normal.y);
-    // float3 tangent = normalize(cross(normalWS, float3(1, 1, 1)));
-    // float3 bitangent = cross(normalWS, tangent);
-    // float4x4 TBN = transpose(float4x4(
-    //     float4(tangent, 0),
-    //     float4(bitangent, 0),
-    //     float4(normalWS, 0),
-    //     float4(0, 0, 0, 1)
-    // ));
-
     // Write instance data
     InstancePosition instancePosition = (InstancePosition)0;
-    instancePosition.vegetationIndex = vegetationIndex;
-    instancePosition.objectToWorld = objectToWorld; //mul(objectToWorld, TBN);
+    instancePosition.vegetationIndex = vegetationIndex * _LODCount;
+    instancePosition.objectToWorld = objectToWorld;
     _InstancePositions[instanceCount] = instancePosition;
-    InterlockedAdd(_InstanceIndex[vegetationIndex].x, 1);
+    InterlockedAdd(_InstanceIndex[vegetationIndex * _LODCount].y, 1);
+}
+
+[numthreads(64,1,1)]
+void GenerateInstanceLODs(uint3 id : SV_DispatchThreadID) {
+    if (id.x >= _InstanceCount[0]) { return; }
+
+    // Get current instance
+    InstancePosition instance = _InstancePositions[id.x];
+    int vegetationIndex = instance.vegetationIndex - instance.vegetationIndex % _LODCount;
+
+    // Calculate the LOD for the instance
+    float3 positionWS = float3(instance.objectToWorld[0][3], instance.objectToWorld[1][3], instance.objectToWorld[2][3]);
+    float realtiveScreenSize = screenRelativeHeight(positionWS, _VegetationData[vegetationIndex].size);
+    float distance = length(positionWS - _CameraPositionWS);
+    int lod = 0;
+    for (uint i = 0; i < _LODCount; i++) {
+        lod = i;
+        if (max(0, 1 - distance / 1500.0f) >= _LODData[vegetationIndex + i]) {
+            break;
+        }
+    }
+
+    // Write LOD data to the instance
+    InterlockedAdd(_InstanceIndex[instance.vegetationIndex].y, -1);
+    InterlockedAdd(_InstanceIndex[vegetationIndex + lod].y, 1);
+    instance.vegetationIndex = vegetationIndex + lod;
+    _InstancePositions[id.x] = instance;
 }
 
 [numthreads(1,1,1)]
@@ -151,24 +188,38 @@ void ComputePrefixSum(uint3 id : SV_DispatchThreadID) {
 
     // Calculate the prefix sum for the instance index buffer
     uint sum = 0;
-    for (uint i = 0; i < _VegetationCount; i++) {
-        _InstanceIndex[i].y = sum;
-        sum += _InstanceIndex[i].x;
+    for (uint i = 0; i < _VegetationCount * _LODCount; i++) {
+        _InstanceIndex[i].x = sum;
+        sum += _InstanceIndex[i].y;
 
-        // Reset the instance offset buffer
-        _InstanceOffset[i] = 0;
+        // Reset the offset counters
+        _InstanceIndex[i].z = 0;
+        _InstanceIndex[i].w = 0;
     }
 }
 
 [numthreads(64,1,1)]
-void SortInstances(uint3 id : SV_DispatchThreadID) {
+void CullInstances(uint3 id : SV_DispatchThreadID) {
     if (id.x >= _InstanceCount[0]) { return; }
+    bool cull = false;
 
-    // Get current instance
+    // Get current instance, position and radius
     InstancePosition instance = _Positions[id.x];
+    float3 positionWS = float3(instance.objectToWorld[0][3], instance.objectToWorld[1][3], instance.objectToWorld[2][3]);
+    float radius = _VegetationData[instance.vegetationIndex].size;
 
-    // Allocate a slot for the instance and insert it into the instance buffer
+    // Frustum cull
+    cull = cull | FrustumCull(positionWS, radius);
+
+    if (cull) return;
+
+    // Hi-Z occlusion cull
+    // cull = cull | OcclusionCull(positionWS, radius);
+
+    if (cull) return;
+
+    // Write instance data
     uint instanceOffset = 0;
-    InterlockedAdd(_InstanceOffset[instance.vegetationIndex], 1, instanceOffset);
-    _InstanceData[_InstanceIndex[instance.vegetationIndex].y + instanceOffset] = instance.objectToWorld;
+    InterlockedAdd(_InstanceIndex[instance.vegetationIndex].w, 1, instanceOffset);
+    _InstancesSorted[_InstanceIndex[instance.vegetationIndex].x + instanceOffset] = instance.objectToWorld;
 }

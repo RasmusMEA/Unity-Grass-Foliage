@@ -7,7 +7,7 @@
 // Current MipMap level to generate
 int _MipLevel;
 
-[numthreads(64,1,1)]
+[numthreads(256,1,1)]
 void CopyDepthToHiZMipMap(uint3 id : SV_DispatchThreadID) {
     if ((int)id.x >= _CameraDimensions.x * _CameraDimensions.y) { return; }
 
@@ -15,7 +15,7 @@ void CopyDepthToHiZMipMap(uint3 id : SV_DispatchThreadID) {
     _HiZBuffer[texelPos] = LOAD_TEXTURE2D_X(_CameraDepthTexture, texelPos).r;
 }
 
-[numthreads(64,1,1)]
+[numthreads(256,1,1)]
 void GenerateHiZMipMap(uint3 id : SV_DispatchThreadID) {
     uint mipWidth = (uint)_CameraDimensions.x >> _MipLevel;
     uint mipHeight = (uint)_CameraDimensions.y >> _MipLevel;

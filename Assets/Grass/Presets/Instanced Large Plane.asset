@@ -23,12 +23,12 @@ MonoBehaviour:
   cameraLODFactor: 1
   maxBladeSegments: 3
   grassBladesPerTriangle: 50
-  grassHeight: 0.42
+  grassHeight: 0.182
   grassWidth: 0.009
   grassBend: 0
   grassSlant: 0
   grassRigidity: 1
-  grassHeightVariation: 0.189
+  grassHeightVariation: 0.118
   grassWidthVariation: 0
   grassBendVariation: 0
   grassSlantVariation: 0

@@ -12,12 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c72b04df6eae31548b0720434e981f05, type: 3}
   m_Name: Large Layer
   m_EditorClassIdentifier: 
-  seed: 6432641
+  seed: 6439268
   influenceDataPoints: 100
   cellSize: 4
-  maxInstances: 40000
+  maxInstances: 100000
+  LODCount: 2
   vegetationInstances:
-  - {fileID: 11400000, guid: 513574a9d77317c408f6b5e45c342aa0, type: 2}
+  - {fileID: 11400000, guid: 0eb6b5f9212a6fb41a09e187e4892e4a, type: 2}
   - {fileID: 11400000, guid: 06fb30c474a575b41bb465e110fa34f7, type: 2}
   - {fileID: 11400000, guid: c1795ef96b2df8a4aaaf5bb5b59d223e, type: 2}
   - {fileID: 11400000, guid: cf346ed679ed9814faf2bb63b07bf9e2, type: 2}

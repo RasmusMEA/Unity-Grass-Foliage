@@ -42,7 +42,7 @@ void DisplaceVertices(uint3 id : SV_DispatchThreadID) {
     _VertexBuffer.Store3(id.x * _VertexStride + _NormalOffset, asint(float3(0, 0, 0)));
 
     // Temporary normal calculation
-    float3 offsetWS = mul(_LocalToWorld, float4(0.1, 0, 0.1, 0)).xyz;
+    float3 offsetWS = mul(_LocalToWorld, float4(1, 0, 1, 0)).xyz;
     float3 v0 = float3(vertexWS.x + offsetWS.x, SampleHeight(vertexWS.x + offsetWS.x, vertexWS.z), vertexWS.z);
     float3 v1 = float3(vertexWS.x, SampleHeight(vertexWS.x, vertexWS.z + offsetWS.z), vertexWS.z + offsetWS.z);
     

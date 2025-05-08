@@ -52,6 +52,11 @@ public class TextureMapsGenerator : MonoBehaviour {
         moistureMapKernelID = instantiatedTextureMapComputeShader.FindKernel("GenerateMoistureMap");
         blurMapKernelID = instantiatedBlurComputeShader.FindKernel("BlurTexture");
 
+        // Set Shader Variables
+        instantiatedTextureMapComputeShader.SetVector("_PositionWS", transform.position);
+        instantiatedTextureMapComputeShader.SetVector("_Dimensions", new Vector4(dimensions.x, dimensions.y, 0, 0));
+        instantiatedTextureMapComputeShader.SetFloat("_Scale", scale);
+
         // Initialize the texture maps.
         terrainMap = new RenderTexture(dimensions.x, dimensions.y, 0, RenderTextureFormat.ARGBHalf);
         terrainMap.enableRandomWrite = true;
@@ -72,11 +77,6 @@ public class TextureMapsGenerator : MonoBehaviour {
         blurMap2 = new RenderTexture(dimensions.x, dimensions.y, 0, RenderTextureFormat.ARGBHalf);
         blurMap2.enableRandomWrite = true;
         blurMap2.Create();
-
-        // Set Shader Variables
-        instantiatedTextureMapComputeShader.SetVector("_PositionWS", transform.position);
-        instantiatedTextureMapComputeShader.SetVector("_Dimensions", new Vector4(dimensions.x, dimensions.y, 0, 0));
-        instantiatedTextureMapComputeShader.SetFloat("_Scale", scale);
 
         // Set the texture maps.
         instantiatedTextureMapComputeShader.SetTexture(terrainMapKernelID, "_TerrainMap", terrainMap);
@@ -135,9 +135,51 @@ public class TextureMapsGenerator : MonoBehaviour {
         blurMap2?.Release();
     }
 
-    // Update is called once per frame
-    void Update() {
+    public void UpdateTextureMaps() {
+
+        // Set Shader Variables
+        instantiatedTextureMapComputeShader.SetVector("_PositionWS", transform.position);
+        instantiatedTextureMapComputeShader.SetVector("_Dimensions", new Vector4(dimensions.x, dimensions.y, 0, 0));
+        instantiatedTextureMapComputeShader.SetFloat("_Scale", scale);
+
+        // Calculate the dispatch size.
+        instantiatedTextureMapComputeShader.GetKernelThreadGroupSizes(terrainMapKernelID, out uint threadGroupSizeX, out uint threadGroupSizeY, out _);
+        dispatchSize = new Vector3Int(
+            Mathf.CeilToInt((float)dimensions.x / threadGroupSizeX),
+            Mathf.CeilToInt((float)dimensions.y / threadGroupSizeY),
+            1
+        );
+
+        // Generate terrain and normal maps.
+        instantiatedTextureMapComputeShader.Dispatch(terrainMapKernelID, dispatchSize.x, dispatchSize.y, dispatchSize.z);
+        instantiatedTextureMapComputeShader.Dispatch(normalMapKernelID, dispatchSize.x, dispatchSize.y, dispatchSize.z);
+
+        // Set the blur shader variables.
+        instantiatedBlurComputeShader.SetVector("_Dimensions", new Vector4(dimensions.x, dimensions.y, 0, 0));
+        instantiatedBlurComputeShader.SetFloat("_Scale", scale);
+
+        instantiatedBlurComputeShader.SetInt("_BlurRadius", blurRadius);
+        instantiatedBlurComputeShader.SetFloat("_DistanceSigma", distanceSigma);
+
+        // Horizontal blur of the terrain map
+        instantiatedBlurComputeShader.SetBool("_HorizontalBlurDirection", true);
+
+        instantiatedBlurComputeShader.SetTexture(blurMapKernelID, "_BlurSource", terrainMap);
+        instantiatedBlurComputeShader.SetTexture(blurMapKernelID, "_BlurTarget", blurMap1);
+
+        instantiatedBlurComputeShader.Dispatch(blurMapKernelID, dispatchSize.x, dispatchSize.y, dispatchSize.z);
+
+        // Vertical blur of the terrain map
+        instantiatedBlurComputeShader.SetBool("_HorizontalBlurDirection", false);
+
+        instantiatedBlurComputeShader.SetTexture(blurMapKernelID, "_BlurSource", blurMap1);
+        instantiatedBlurComputeShader.SetTexture(blurMapKernelID, "_BlurTarget", blurMap2);
         
+        instantiatedBlurComputeShader.Dispatch(blurMapKernelID, dispatchSize.x, dispatchSize.y, dispatchSize.z);
+
+        // Generate moisture map
+        instantiatedTextureMapComputeShader.SetTexture(moistureMapKernelID, "_BlurredMapView", blurMap2);
+        instantiatedTextureMapComputeShader.Dispatch(moistureMapKernelID, dispatchSize.x, dispatchSize.y, dispatchSize.z);
     }
 
     // Display the texture maps.

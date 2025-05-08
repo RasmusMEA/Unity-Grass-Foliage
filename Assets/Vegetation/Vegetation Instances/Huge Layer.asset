@@ -16,5 +16,6 @@ MonoBehaviour:
   influenceDataPoints: 100
   cellSize: 32
   maxInstances: 500
+  LODCount: 1
   vegetationInstances:
   - {fileID: 11400000, guid: 1459e94e2d44ddb42beffa27459e82fc, type: 2}
