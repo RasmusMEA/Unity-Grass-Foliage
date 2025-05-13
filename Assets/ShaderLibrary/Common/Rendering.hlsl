@@ -7,6 +7,7 @@ float3 _LODSettings;
 float3 _CameraPositionWS;
 float3 _CameraDirectionWS;
 float _CameraFOV;
+static const float _LodBias = 2.0;
 
 // Camera frustum culling
 float4 _CameraFrustumPlanes[6];
@@ -27,15 +28,9 @@ bool FrustumCull(float3 position, float radius) {
 }
 
 // Calculate the relative height of an object on the screen, returns a factor between 0 and 1
-float screenRelativeHeight(float3 positionWS, float radius) {
-    
-    // Calculate the distance from the camera to the object
-    float3 cameraToObject = positionWS - _CameraPositionWS;
-    float distance = length(cameraToObject);
-
-    // Calculate the screen size of the object based on its distance and radius
-    float screenSize = (radius * 2) / distance * _CameraFOV * _LODSettings.x;
-    return screenSize;
+// Source: https://discussions.unity.com/t/how-lod-group-component-works-internaly-i-want-to-optimize-it/695215/5
+float screenSpaceHeight(float3 positionWS, float radius) {
+    return abs(degrees(atan2(radius, length(positionWS - _CameraPositionWS))) * _LodBias) / _CameraFOV;
 }
 
 #endif // RENDERING_HLSL
