@@ -10,12 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c72b04df6eae31548b0720434e981f05, type: 3}
-  m_Name: Small Layer
+  m_Name: Tree Layer
   m_EditorClassIdentifier: 
-  seed: 91428491
+  seed: 6443843
   influenceDataPoints: 100
-  cellSize: 5
-  maxInstances: 20000
-  LODCount: 1
+  cellSize: 6
+  maxInstances: 100000
   vegetationInstances:
-  - {fileID: 11400000, guid: 5bbb5934b8cd35141b8c8f83f4db6ef9, type: 2}
+  - {fileID: 11400000, guid: acf1e741f0fdba6478568c034ad4cee7, type: 2}

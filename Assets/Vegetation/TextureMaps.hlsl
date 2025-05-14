@@ -25,7 +25,8 @@ SamplerState sampler_TerrainMapView {
 };
 
 // Normal map for the terrain, contains steepness and normal information
-// RGB: Normal (XYZ) and Steepness (1 - Z)
+// Extract normal from texture: (normal.xzy * 2 - 1)
+// RGB: Normal (XZY) and Steepness (1 - normal.z)
 RWTexture2D<float3> _NormalMap;
 Texture2D<float4> _NormalMapView;
 SamplerState sampler_NormalMapView {

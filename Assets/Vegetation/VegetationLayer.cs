@@ -16,67 +16,99 @@ public class VegetationLayer : ScriptableObject {
 
     [Header("Vegetation Settings")]
     [SerializeField] private int maxInstances;
-    [SerializeField] [Range(1, 4)] public int LODCount;
     [SerializeField] private List<VegetationInstance> vegetationInstances;
-
-    // Compute buffer for vegetation instances.
-    public ComputeBuffer instanceCounter;
-
-    public ComputeBuffer vegetationData;            // Vegetation data for each vegetation type
-    public ComputeBuffer influenceDataBuffer;       // Influence data for each vegetation type 
-    public ComputeBuffer LODDataBuffer;             // LOD data for each vegetation type
     
-    public ComputeBuffer instanceIndexBuffer;       // (<startIndex, instanceCount>, sortedCount, visibleCount) for each vegetation LOD type
-    public ComputeBuffer instanceBuffer;            // Vegetation instances to be processed, vegetation type and objectToWorld matrix for each instance
-    public ComputeBuffer instanceBufferSorted;      // Vegetation instances sorted and culled, objectToWorld matrix for each instance
+    public struct VegetationIndex {
+        public uint startIndex;                     // Start index of the vegetation instance
+        public uint instanceCount;                  // Number of instances
+        public uint visibleCount;                   // Number of visible instances
+    }
 
-    // Instancing arguments.
-    private uint[] args;
-    private int instanceCount;
+    // Input buffers for vegetation types and prefabs.
+    ComputeBuffer vegetationTypesBuffer;            // Buffer for vegetation types
+    ComputeBuffer vegetationPrefabsBuffer;          // Buffer for vegetation prefabs
 
-    // Positions of the vegetation instances.
-    private Matrix4x4[] instancePositions;
+    ComputeBuffer prefabLODBuffer;                  // Buffer for LOD data
+    ComputeBuffer vegetationInfluenceWeightsBuffer; // Buffer for influence weights
+
+    // Output buffers for vegetation instances.
+    ComputeBuffer instanceCounter;                  // Total number of instances
+    ComputeBuffer instanceIndexBuffer;              // (startIndex, instanceCount, visibleCount) for each vegetation LOD type
+    
+    ComputeBuffer instanceBuffer;                   // Vegetation instances to be processed, vegetation type and objectToWorld matrix for each instance
+    ComputeBuffer instanceBufferSorted;             // Vegetation instances sorted and culled, objectToWorld matrix for each instance
+
+    // CPU-side buffers.
+    private int instanceCount;                      // Total number of instances
+    VegetationIndex[] vegetationIndexArray;         // Vegetation index buffer for all prefab lods
+    private Matrix4x4[] vegetationPositions;        // Positions of the vegetation instances
+    List<Renderer>[] vegetationRenderers;           // Prefabs for each vegetation type
 
     public void Setup() {
 
-        // Create compute buffers.
-        instanceCounter = new ComputeBuffer(1, sizeof(int));
-        vegetationData = new ComputeBuffer(vegetationInstances.Count, sizeof(float) * 11 + sizeof(int));
-        influenceDataBuffer = new ComputeBuffer(vegetationInstances.Count * influenceDataPoints * 5, sizeof(float));
-        LODDataBuffer = new ComputeBuffer(vegetationInstances.Count * LODCount, sizeof(float));
-        instanceBuffer = new ComputeBuffer(maxInstances, sizeof(int) + sizeof(float) * 16);
-        instanceIndexBuffer = new ComputeBuffer(vegetationInstances.Count * LODCount, sizeof(int) * 4);
-        instanceBufferSorted = new ComputeBuffer(maxInstances, sizeof(float) * 16);
+        // Get vegetation types, prefabs, lods and influence weights from the vegetation instances.
+        VegetationInstance.VegetationType[] vegetationTypes = new VegetationInstance.VegetationType[vegetationInstances.Count];
+        List<VegetationInstance.VegetationPrefab> vegetationPrefabs = new List<VegetationInstance.VegetationPrefab>();
+        List<float> prefabLODs = new List<float>();
+        float[] vegetationInfluenceWeights = new float[vegetationInstances.Count * influenceDataPoints * 5];
 
-        // Create instancing arguments.
-        args = new uint[vegetationInstances.Count * LODCount * 4];
-        instancePositions = new Matrix4x4[maxInstances];
-
-        // Set vegetation data, influence data, and LOD data.
-        VegetationInstance.VegetationData[] vegetationDataArray = new VegetationInstance.VegetationData[vegetationInstances.Count];
-        float[] influenceData = new float[vegetationInstances.Count * influenceDataPoints * 5];
-        float[] LODData = new float[vegetationInstances.Count * LODCount];
         for (int i = 0; i < vegetationInstances.Count; i++) {
-            vegetationDataArray[i] = vegetationInstances[i].GetVegetationData();
-            vegetationInstances[i].GetInfluenceData(influenceDataPoints, i * influenceDataPoints * 5, ref influenceData);
-            vegetationInstances[i].GetLODData(LODCount, i * LODCount, ref LODData);
+            vegetationInstances[i].GetVegetationType((uint)i, (uint)vegetationPrefabs.Count, ref vegetationTypes);
+            vegetationInstances[i].GetVegetationPrefabs((uint)i, (uint)prefabLODs.Count, ref vegetationPrefabs);
+            vegetationInstances[i].GetPrefabLODs(ref prefabLODs);
+            vegetationInstances[i].GetInfluenceData(influenceDataPoints, i * influenceDataPoints * 5, ref vegetationInfluenceWeights);
         }
-        vegetationData.SetData(vegetationDataArray);
-        influenceDataBuffer.SetData(influenceData);
-        LODDataBuffer.SetData(LODData);
+
+        // Create compute buffers.
+        if (vegetationPrefabs.Count > 0) {
+
+            // Create input buffers.
+            vegetationTypesBuffer = new ComputeBuffer(vegetationTypes.Length, sizeof(uint) * 3);
+            vegetationPrefabsBuffer = new ComputeBuffer(vegetationPrefabs.Count, sizeof(uint) * 3 + sizeof(float) * 12);
+            prefabLODBuffer = new ComputeBuffer(prefabLODs.Count, sizeof(float));
+            vegetationInfluenceWeightsBuffer = new ComputeBuffer(vegetationInfluenceWeights.Length, sizeof(float));
+
+            // Create output buffers.
+            instanceCounter = new ComputeBuffer(1, sizeof(int));
+            instanceIndexBuffer = new ComputeBuffer(prefabLODs.Count, sizeof(uint) * 3);
+            instanceBuffer = new ComputeBuffer(maxInstances, sizeof(int) * 2 + sizeof(float) * 16);
+            instanceBufferSorted = new ComputeBuffer(maxInstances, sizeof(float) * 16);
+
+            // Set input compute buffers.
+            vegetationTypesBuffer.SetData(vegetationTypes);
+            vegetationPrefabsBuffer.SetData(vegetationPrefabs.ToArray());
+            prefabLODBuffer.SetData(prefabLODs.ToArray());
+            vegetationInfluenceWeightsBuffer.SetData(vegetationInfluenceWeights);
+        }
+        
+        // Create vegetation index buffer and vegetation prefabs.
+        vegetationIndexArray = new VegetationIndex[prefabLODs.Count];
+        vegetationPositions = new Matrix4x4[maxInstances];
+        vegetationRenderers = new List<Renderer>[prefabLODs.Count];
+
+        uint startIndex = 0;
+        for (int i = 0; i < vegetationInstances.Count; i++) {
+            startIndex = vegetationInstances[i].GetGameObjects(startIndex, ref vegetationRenderers);
+        }
     }
 
     public void Release() {
-        vegetationData?.Release();
-        influenceDataBuffer?.Release();
-        LODDataBuffer?.Release();
-        instanceBuffer?.Release();
-        instanceIndexBuffer?.Release();
-        instanceBufferSorted?.Release();
+
+        // Release input compute buffers.
+        vegetationTypesBuffer?.Release();
+        vegetationPrefabsBuffer?.Release();
+        prefabLODBuffer?.Release();
+        vegetationInfluenceWeightsBuffer?.Release();
+
+        // Release output compute buffers.
         instanceCounter?.Release();
+        instanceIndexBuffer?.Release();
+        instanceBuffer?.Release();
+        instanceBufferSorted?.Release();
     }
 
     public void DistributeVegetation(VegetationInstancer vegetationInstancer, ComputeShader vegetationInstancerShader) {
+        if (vegetationPrefabsBuffer == null) return;
 
         // Get shader variables from the VegetationInstancer calling this method.
         Vector2Int dimensions = vegetationInstancer.dimensions;
@@ -84,7 +116,6 @@ public class VegetationLayer : ScriptableObject {
 
         // Set shader variables.
         vegetationInstancerShader.SetInt("_Seed", seed);
-        vegetationInstancerShader.SetInt("_LODCount", LODCount);
         vegetationInstancerShader.SetInt("_DataPoints", influenceDataPoints);
         vegetationInstancerShader.SetInt("_MaxInstanceCount", maxInstances);
         vegetationInstancerShader.SetInt("_VegetationCount", vegetationInstances.Count);
@@ -97,11 +128,10 @@ public class VegetationLayer : ScriptableObject {
         ));
         vegetationInstancerShader.SetFloat("_CellSize", cellSize);
         
-
         // Reset counters.
         instanceBuffer.SetCounterValue(0);
         instanceCounter.SetData(new int[] { 0 });
-        instanceIndexBuffer.SetData(new int[vegetationInstances.Count * LODCount * 4]);
+        instanceIndexBuffer.SetData(new uint[vegetationIndexArray.Length * 3]);
 
         // Calculate the dispatch size.
         vegetationInstancerShader.GetKernelThreadGroupSizes(vegetationInstancer.distributionKernelID, out uint threadGroupSizeX, out uint threadGroupSizeY, out _);
@@ -112,9 +142,10 @@ public class VegetationLayer : ScriptableObject {
         );
         
         // Distribute vegetation instances.
-        vegetationInstancerShader.SetBuffer(vegetationInstancer.distributionKernelID, "_VegetationData", vegetationData);
-        vegetationInstancerShader.SetBuffer(vegetationInstancer.distributionKernelID, "_InfluenceData", influenceDataBuffer);
-        vegetationInstancerShader.SetBuffer(vegetationInstancer.distributionKernelID, "_LODData", LODDataBuffer);
+        vegetationInstancerShader.SetBuffer(vegetationInstancer.distributionKernelID, "_VegetationTypes", vegetationTypesBuffer);
+        vegetationInstancerShader.SetBuffer(vegetationInstancer.distributionKernelID, "_VegetationPrefabs", vegetationPrefabsBuffer);
+        vegetationInstancerShader.SetBuffer(vegetationInstancer.distributionKernelID, "_PrefabLODs", prefabLODBuffer);
+        vegetationInstancerShader.SetBuffer(vegetationInstancer.distributionKernelID, "_VegetationInfluenceWeights", vegetationInfluenceWeightsBuffer);
 
         vegetationInstancerShader.SetBuffer(vegetationInstancer.distributionKernelID, "_InstanceCount", instanceCounter);
         vegetationInstancerShader.SetBuffer(vegetationInstancer.distributionKernelID, "_InstancePositions", instanceBuffer);
@@ -129,6 +160,7 @@ public class VegetationLayer : ScriptableObject {
     }
 
     public void UpdateVegetation(VegetationInstancer vegetationInstancer, ComputeShader vegetationInstancerShader) {
+        if (instanceCount == 0) return;
 
         // Get shader variables from the VegetationInstancer calling this method.
         Vector2Int dimensions = vegetationInstancer.dimensions;
@@ -136,7 +168,6 @@ public class VegetationLayer : ScriptableObject {
 
         // Set shader variables.
         vegetationInstancerShader.SetInt("_Seed", seed);
-        vegetationInstancerShader.SetInt("_LODCount", LODCount);
         vegetationInstancerShader.SetInt("_DataPoints", influenceDataPoints);
         vegetationInstancerShader.SetInt("_MaxInstanceCount", maxInstances);
         vegetationInstancerShader.SetInt("_VegetationCount", vegetationInstances.Count);
@@ -158,8 +189,9 @@ public class VegetationLayer : ScriptableObject {
         );
 
         // Generate LODs for the instances.
-        vegetationInstancerShader.SetBuffer(vegetationInstancer.LODKernelID, "_VegetationData", vegetationData);
-        vegetationInstancerShader.SetBuffer(vegetationInstancer.LODKernelID, "_LODData", LODDataBuffer);
+        vegetationInstancerShader.SetBuffer(vegetationInstancer.LODKernelID, "_VegetationTypes", vegetationTypesBuffer);
+        vegetationInstancerShader.SetBuffer(vegetationInstancer.LODKernelID, "_VegetationPrefabs", vegetationPrefabsBuffer);
+        vegetationInstancerShader.SetBuffer(vegetationInstancer.LODKernelID, "_PrefabLODs", prefabLODBuffer);
 
         vegetationInstancerShader.SetBuffer(vegetationInstancer.LODKernelID, "_InstanceCount", instanceCounter);
         vegetationInstancerShader.SetBuffer(vegetationInstancer.LODKernelID, "_InstancePositions", instanceBuffer);
@@ -181,7 +213,8 @@ public class VegetationLayer : ScriptableObject {
         );
 
         // Cull the instances.
-        vegetationInstancerShader.SetBuffer(vegetationInstancer.cullKernelID, "_VegetationData", vegetationData);
+        vegetationInstancerShader.SetBuffer(vegetationInstancer.cullKernelID, "_VegetationTypes", vegetationTypesBuffer);
+        vegetationInstancerShader.SetBuffer(vegetationInstancer.cullKernelID, "_VegetationPrefabs", vegetationPrefabsBuffer);
 
         vegetationInstancerShader.SetBuffer(vegetationInstancer.cullKernelID, "_InstanceCount", instanceCounter);
         vegetationInstancerShader.SetBuffer(vegetationInstancer.cullKernelID, "_InstanceIndex", instanceIndexBuffer);
@@ -190,23 +223,20 @@ public class VegetationLayer : ScriptableObject {
 
         vegetationInstancerShader.Dispatch(vegetationInstancer.cullKernelID, cullDispatchSize.x, cullDispatchSize.y, cullDispatchSize.z);
 
-        // Read back the instance index buffer. TODO: these should never be read back
-        instanceIndexBuffer.GetData(args);
-        
-        // Read back the instance positions.
-        instanceBufferSorted.GetData(instancePositions);
+        // Read back index and position data.
+        instanceIndexBuffer.GetData(vegetationIndexArray);
+        instanceBufferSorted.GetData(vegetationPositions);
     }
 
     public void RenderVegetation(VegetationInstancer vegetationInstancer) {
 
-        // Render the vegetation.
-        for (int i = 0; i < vegetationInstances.Count; i++) {
-            VegetationInstance vegetationInstance = vegetationInstances[i];
+        // Render the vegetation instances.
+        for (int i = 0; i < vegetationIndexArray.Length; i++) {
+            VegetationIndex vi = vegetationIndexArray[i];
+            if (vi.visibleCount == 0 || vegetationRenderers[i] == null) continue;
 
-            // If the vegetation instance is not a LOD group, render it directly.
-            // Otherwise, render each LOD level separately.
-            if (vegetationInstance.prefab.GetComponent<LODGroup>() == null) {
-                Renderer renderer = vegetationInstance.prefab.GetComponent<Renderer>();
+            // Get the vegetation instance and its renderers.
+            foreach (Renderer renderer in vegetationRenderers[i]) {
                 Mesh mesh = renderer.GetComponent<MeshFilter>().sharedMesh;
                 Material[] materials = renderer.sharedMaterials;
 
@@ -228,51 +258,13 @@ public class VegetationLayer : ScriptableObject {
                     );
 
                     // Render batches of instances.
-                    int batches = Mathf.CeilToInt(args[i * LODCount * 4 + 3] / 1023f);
+                    int batches = Mathf.CeilToInt(vi.visibleCount / 1023f);
                     for (int k = 0; k < batches; k++) {
 
                         // Calculate the dispatch size and draw the vegetation.
-                        uint dispatchSize = (uint)Mathf.Min(1023, args[i * LODCount * 4 + 3] - k * 1023);
-                        uint startIndex = (uint)args[i * LODCount * 4] + (uint)k * 1023;
-                        Graphics.RenderMeshInstanced(rp, mesh, j, instancePositions, (int)dispatchSize, (int)startIndex);
-                    }
-                }
-            } else {
-                LOD[] lods = vegetationInstance.prefab.GetComponent<LODGroup>().GetLODs();
-                for (int j = 0; j < lods.Length; j++) {
-                    Renderer[] renderers = lods[j].renderers;
-                    if (renderers == null) continue;
-                    for (int k = 0; k < renderers.Length; k++) {
-                        Mesh mesh = renderers[k].GetComponent<MeshFilter>().sharedMesh;
-                        Material[] materials = renderers[k].sharedMaterials;
-
-                        // Render all submeshes with given material.
-                        for (int l = 0; l < materials.Length; l++) {
-                            Material material = materials[l];
-                            material.enableInstancing = true;
-
-                            // Setup RenderParams.
-                            RenderParams rp = new RenderParams(material);
-                            rp.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
-                            rp.worldBounds = new Bounds(
-                                vegetationInstancer.transform.position, 
-                                new Vector3(
-                                    vegetationInstancer.dimensions.x * vegetationInstancer.scale, 
-                                    1000, 
-                                    vegetationInstancer.dimensions.y * vegetationInstancer.scale
-                                )
-                            );
-
-                            // Render batches of instances.
-                            int batches = Mathf.CeilToInt(args[(i * LODCount + j) * 4 + 3] / 1023f);
-                            for (int m = 0; m < batches; m++) {
-
-                                // Calculate the dispatch size and draw the vegetation.
-                                uint dispatchSize = (uint)Mathf.Min(1023, args[(i * LODCount + j) * 4 + 3] - m * 1023);
-                                uint startIndex = (uint)args[(i * LODCount + j) * 4] + (uint)m * 1023;
-                                Graphics.RenderMeshInstanced(rp, mesh, l, instancePositions, (int)dispatchSize, (int)startIndex);
-                            }
-                        }
+                        uint dispatchSize = (uint)Mathf.Min(1023, vi.visibleCount - k * 1023);
+                        uint startIndex = vi.startIndex + (uint)k * 1023;
+                        Graphics.RenderMeshInstanced(rp, mesh, j, vegetationPositions, (int)dispatchSize, (int)startIndex);
                     }
                 }
             }

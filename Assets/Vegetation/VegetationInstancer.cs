@@ -84,7 +84,9 @@ public class VegetationInstancer : MonoBehaviour {
         // Release the buffers.
         foreach (VegetationLayer layer in instantiatedVegetationLayers) {
             layer.Release();
+            DestroyImmediate(layer);
         }
+        instantiatedVegetationLayers.Clear();
     }
 
     // Update is called once per frame
@@ -97,10 +99,8 @@ public class VegetationInstancer : MonoBehaviour {
             textureMapsGenerator.UpdateTextureMaps();
             
             // Set up the layers.
-            foreach (VegetationLayer layer in instantiatedVegetationLayers) {
-                layer.Release();
-                layer.Setup();
-            }
+            OnDisable();
+            OnEnable();
 
             // Distribute the vegetation.
             int coverageChannel = 0;
