@@ -10,6 +10,10 @@
 #include "Assets/ShaderLibrary/Common/Rendering.hlsl"
 #include "Assets/HiZ-Culling/HiZOcclusionCulling.hlsl"
 
+// Includes to enable indirect draw
+#define UNITY_INDIRECT_DRAW_ARGS IndirectDrawIndexedArgs
+#include "UnityIndirect.cginc"
+
 // Jittered grid sampling
 int _Seed;
 uint2 _CellCount;
@@ -37,13 +41,22 @@ struct VegetationPrefab {
     float3 position;
     float3 rotation;
     float3 scale;
+
+    // Spawn settings
+    float alignToNormal;                    // Align instance to normal of terrain (0 = none, 1 = fully aligned)
     
-    // LOD & indexing
+    // Indexing
     uint startIndex;                        // Start index of the LODs
     uint lodCount;                          // Number of LODs
-    float radius;                           // Radius of the vegetation instance, used for culling
 
-    float alignToNormal;                    // Align instance to normal of terrain (0 = none, 1 = fully aligned)                
+    // LOD
+    float radius;                           // Radius of the vegetation instance, used for culling
+};
+
+struct PrefabData {
+    float lodSize;                          // LOD size, used for culling
+    int materialStartIndex;                 // Start index of the vegetation instance
+    int materialCount;                      // Number of materials, used for indirect draw
 };
 
 // Vegetation input data
@@ -53,7 +66,7 @@ StructuredBuffer<VegetationPrefab> _VegetationPrefabs;
 
 // Prefab LOD & Influence data
 uint _DataPoints;
-StructuredBuffer<float> _PrefabLODs;
+StructuredBuffer<PrefabData> _Prefabs;
 StructuredBuffer<float> _VegetationInfluenceWeights;
 
 // Resulting instance data, vegetationIndex for sorting instances and objectToWorld for Instancing
@@ -70,6 +83,9 @@ RWStructuredBuffer<uint3> _InstanceIndex;                       // (startIndex, 
 RWStructuredBuffer<InstancePosition> _InstancePositions;        // Vegetation instances to be sorted
 StructuredBuffer<InstancePosition> _Positions;                  // Read buffer for the vegetation instances
 RWStructuredBuffer<float4x4> _InstancesSorted;                  // Object to world matrix for each instance, sorted and culled by visibility
+
+// Indirect draw arguments (Possible problem: https://discussions.unity.com/t/do-not-use-unitys-indirectdrawindexedargs-in-a-structuredbuffer/1623092)
+RWStructuredBuffer<IndirectDrawIndexedArgs> _IndirectDrawIndexedArgs;
 
 float SampleWeight(int vegetationIndex, int dataType, float value) {
     float index = (vegetationIndex * 5 + dataType) * _DataPoints + value * (_DataPoints - 1);
@@ -217,7 +233,7 @@ void GenerateInstanceLODs(uint3 id : SV_DispatchThreadID) {
     uint lod = 0;
     for (uint i = 0; i < prefab.lodCount; i++) {
         lod = i;
-        if (realtiveScreenSize >= _PrefabLODs[prefab.startIndex + i]) {
+        if (realtiveScreenSize >= _Prefabs[prefab.startIndex + i].lodSize) {
             break;
         }
     }
@@ -240,12 +256,19 @@ void ComputePrefixSum(uint3 id : SV_DispatchThreadID) {
 
     // Calculate the prefix sum for the instance index buffer
     uint sum = 0;
+    uint index = 0;
     for (uint i = 0; i < _InstanceIndex.Length; i++) {
         _InstanceIndex[i].x = sum;
-        sum += _InstanceIndex[i].y;
-
-        // Reset the offset counters
         _InstanceIndex[i].z = 0;
+
+        // Reset indirect draw args
+        for (int j = 0; j < _Prefabs[i].materialCount; j++) {
+            _IndirectDrawIndexedArgs[index].startInstance = sum;
+            _IndirectDrawIndexedArgs[index].instanceCount = 0;
+            index++;
+        }
+
+        sum += _InstanceIndex[i].y;
     }
 }
 
@@ -274,4 +297,10 @@ void CullInstances(uint3 id : SV_DispatchThreadID) {
     uint instanceOffset = 0;
     InterlockedAdd(_InstanceIndex[instance.lodIndex].z, 1, instanceOffset);
     _InstancesSorted[_InstanceIndex[instance.lodIndex].x + instanceOffset] = instance.objectToWorld;
+
+    // Update the indirect draw args
+    PrefabData prefabData = _Prefabs[instance.lodIndex];
+    for (int index = prefabData.materialStartIndex; index < prefabData.materialStartIndex + prefabData.materialCount; index++) {
+        InterlockedAdd(_IndirectDrawIndexedArgs[index].instanceCount, 1);
+    }
 }

@@ -14,6 +14,8 @@ public class VegetationInstancer : MonoBehaviour {
     [SerializeField] private bool render = true;
 
     [Header("Vegetation Layers")]
+    [Tooltip("Uses Indirect GPU Instancing (Requires compatible shaders).")]
+    [SerializeField] public bool useIndirectInstancing = false;
     [SerializeField] private List<VegetationLayer> vegetationLayers;
     private List<VegetationLayer> instantiatedVegetationLayers = new List<VegetationLayer>();
 

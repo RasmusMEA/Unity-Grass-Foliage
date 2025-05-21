@@ -48,13 +48,22 @@ public class VegetationInstance : ScriptableObject {
         public Vector3 position;
         public Vector3 rotation;
         public Vector3 scale;
+
+        // Spawn settings
+        public float alignToNormal;                    // Align instance to normal of terrain (0 = none, 1 = fully aligned)
         
-        // LOD & indexing
+        // Indexing
         public uint startIndex;                        // Start index of the LODs
         public uint lodCount;                          // Number of LODs
-        public float radius;                           // Radius of the vegetation instance, used for culling
 
-        public float alignToNormal;                    // Align instance to normal of terrain (0 = none, 1 = fully aligned)                
+        // LOD
+        public float radius;                           // Radius of the vegetation instance, used for culling
+    };
+
+    public struct PrefabData {
+        public float lodSize;                          // LOD size, used for culling
+        public int materialStartIndex;                 // Start index of the vegetation instance
+        public int materialCount;                      // Number of materials, used for indirect draw
     };
 
     void OnValidate() {
@@ -127,17 +136,58 @@ public class VegetationInstance : ScriptableObject {
         return startIndex;
     }
 
-    // Adds all LODs to the list and returns the new start index
-    public void GetPrefabLODs(ref List<float> prefabLODs) {
-        foreach (GameObject prefab in prefabs) {
+    // Adds all LODs to the list and sets the indirect draw args
+    public int GetPrefabs(int startIndex, ref List<PrefabData> prefabs, ref List<GraphicsBuffer.IndirectDrawIndexedArgs> args) {
+        foreach (GameObject prefab in this.prefabs) {
             if (prefab.TryGetComponent<LODGroup>(out LODGroup lodGroup)) {
                 foreach (LOD lod in lodGroup.GetLODs()) {
-                    prefabLODs.Add(lod.screenRelativeTransitionHeight);
+                    // Get material count
+                    int materials = 0;
+                    foreach (Renderer renderer in lod.renderers) {
+                        MeshFilter meshFilter = renderer.GetComponent<MeshFilter>();
+                        materials += renderer.sharedMaterials.Length;
+
+                        // Set the indirect draw args
+                        for (int i = 0; i < renderer.sharedMaterials.Length; i++) {
+                            args.Add(new GraphicsBuffer.IndirectDrawIndexedArgs() {
+                                indexCountPerInstance = meshFilter.sharedMesh.GetIndexCount(i % renderer.sharedMaterials.Length),
+                                instanceCount = 0,
+                                startIndex = meshFilter.sharedMesh.GetIndexStart(i % renderer.sharedMaterials.Length),
+                                baseVertexIndex = meshFilter.sharedMesh.GetBaseVertex(i % renderer.sharedMaterials.Length),
+                                startInstance = 0
+                            });
+                        }
+                    }
+
+                    prefabs.Add(new PrefabData() {
+                        lodSize = lod.screenRelativeTransitionHeight,
+                        materialStartIndex = startIndex,
+                        materialCount = materials
+                    });
+                    startIndex += materials;
                 }
             } else if (prefab.TryGetComponent<MeshFilter>(out MeshFilter meshFilter)) {
-                prefabLODs.Add(0);
+                int materials = meshFilter.GetComponent<Renderer>().sharedMaterials.Length;
+                prefabs.Add(new PrefabData() {
+                    lodSize = 0.0f,
+                    materialStartIndex = startIndex,
+                    materialCount = materials
+                });
+                startIndex += materials;
+
+                // Set the indirect draw args
+                for (int i = 0; i < materials; i++) {
+                    args.Add(new GraphicsBuffer.IndirectDrawIndexedArgs() {
+                        indexCountPerInstance = meshFilter.sharedMesh.GetIndexCount(i % materials),
+                        instanceCount = 0,
+                        startIndex = meshFilter.sharedMesh.GetIndexStart(i % materials),
+                        baseVertexIndex = meshFilter.sharedMesh.GetBaseVertex(i % materials),
+                        startInstance = 0
+                    });
+                }
             }
         }
+        return startIndex;
     }
 
     // Adds all Influence Weights to the array
