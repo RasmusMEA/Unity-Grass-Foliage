@@ -6,8 +6,12 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 //#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
+// Custom Include
+#include "Assets/ShaderLibrary/Common/Rendering.hlsl"
+
 // Camera
 float4x4 _viewMatrix;
+float4x4 _projectionMatrix;
 float4 _ZBufferParams_Custom;
 
 // Depth texture
@@ -25,7 +29,7 @@ float LinearToDepth(float linearDepth) {
 
 // Get the mip level of the Hi-Z buffer
 int GetMipLevel(float size) {
-    return (int)log2(max(size, 1));
+    return (int)ceil(log2(max(size, 1)));
 }
 
 // Get the mip offset of the Hi-Z buffer
@@ -43,20 +47,13 @@ float4 GetTexels(float2 uv, int mipLevel) {
     int2 mipMaxBounds = (_CameraDimensions >> mipLevel) - 1;
     
     // Get the 4 texel coordinates and clamp them to the mip level bounds
-    float2 center = uv * _CameraDimensions.xy;
+    float2 center = uv * mipMaxBounds;
     int2 texelCoords[4] = {
-        clamp((int2(center) >> mipLevel) + int2(frac(center) + float2(-0.5, -0.5)), 0, mipMaxBounds),
-        clamp((int2(center) >> mipLevel) + int2(frac(center) + float2(0.5, -0.5)), 0, mipMaxBounds),
-        clamp((int2(center) >> mipLevel) + int2(frac(center) + float2(-0.5, 0.5)), 0, mipMaxBounds),
-        clamp((int2(center) >> mipLevel) + int2(frac(center) + float2(0.5, 0.5)), 0, mipMaxBounds)
+        clamp(int2(center + int2(0, 0)), 0, mipMaxBounds),
+        clamp(int2(center + int2(1, 0)), 0, mipMaxBounds),
+        clamp(int2(center + int2(0, 1)), 0, mipMaxBounds),
+        clamp(int2(center + int2(1, 1)), 0, mipMaxBounds)
     };
-    // float2 center = uv * mipMaxBounds - 0.5;
-    // int2 texelCoords[4] = {
-    //     clamp(int2(center) + int2(0, 0), 0, mipMaxBounds),
-    //     clamp(int2(center) + int2(1, 0), 0, mipMaxBounds),
-    //     clamp(int2(center) + int2(0, 1), 0, mipMaxBounds),
-    //     clamp(int2(center) + int2(1, 1), 0, mipMaxBounds)
-    // };
 
     // Read the 4 texels from the Hi-Z buffer
     return float4(
@@ -70,17 +67,24 @@ float4 GetTexels(float2 uv, int mipLevel) {
 // Checks if a sphere is occluded by the Hi-Z buffer
 bool OcclusionCull(float3 positionWS, float radius) {
 
-    // Calculate the bounding sphere and radius in screen space, remap to [0, 1]
-    float4 positionCS = mul(_viewMatrix, float4(positionWS, 1.0));
-    if (positionCS.w <= 0.00001) return false;
-    positionCS.xy = clamp(positionCS.xy / positionCS.w, -1, 1) * 0.5 + 0.5;
+    // Calculate the bounding sphere center in screen space, remap to [0, 1]
+    // float4 positionCS = mul(_projectionMatrix, mul(_viewMatrix, float4(positionWS, 1.0)));
+
+    // Move position towards the camera by the radius to get the depth of the sphere
+    float3 Cv = mul(_viewMatrix, float4(positionWS, 1.0)).xyz;
+    float3 Pv = Cv - normalize(Cv) * radius;
+    float4 positionCS = mul(_projectionMatrix, float4(Pv, 1));
+    if (positionCS.w <= 0) return false;
+    positionCS.xyz /= positionCS.w;
+    positionCS.xy = positionCS.xy * 0.5 + 0.5;
 
     // Read the depth values from the Hi-Z buffer
-    float4 texels = GetTexels(positionCS.xy, GetMipLevel(radius * 2 / positionCS.w * _CameraDimensions.y));
+    int mipLevel = GetMipLevel(screenSpaceHeight(positionWS, radius) * _CameraDimensions.y);
+    float4 texels = GetTexels(positionCS.xy, mipLevel);
     float HiZDepth = min(min(texels.x, texels.y), min(texels.z, texels.w));
 
     // Check if depth to the sphere is less than the Hi-Z depth
-    return LinearToDepth(positionCS.w - radius) < HiZDepth;
+    return (1 - positionCS.z) < HiZDepth;
 }
 
 // Checks if a sphere is of less pixel size than target size

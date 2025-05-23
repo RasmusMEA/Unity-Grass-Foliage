@@ -53,7 +53,8 @@ public class HiZOcclusion : MonoBehaviour {
         // Override URP's bugged unity_WorldToCamera and unity_CameraProjection matrices
         Shader.SetGlobalMatrix("unity_WorldToCamera", Camera.main.worldToCameraMatrix);
         Shader.SetGlobalMatrix("unity_CameraProjection", Camera.main.projectionMatrix);
-        Shader.SetGlobalMatrix("_viewMatrix", Camera.main.projectionMatrix * Camera.main.worldToCameraMatrix);
+        Shader.SetGlobalMatrix("_viewMatrix", Camera.main.worldToCameraMatrix);
+        Shader.SetGlobalMatrix("_projectionMatrix", Camera.main.projectionMatrix);
 
         // Override URP's _ZBufferParams
         Shader.SetGlobalVector("_ZBufferParams_Custom", new Vector4(
